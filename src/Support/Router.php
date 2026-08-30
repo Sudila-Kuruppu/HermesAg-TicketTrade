@@ -83,7 +83,7 @@ class Router
     private static function renderStubLanding(string $surface): void
     {
         http_response_code(200);
-        $viewPath = dirname(__DIR__) . '/View/landing.php';
+        $viewPath = __DIR__ . '/View/landing.php';
         if (is_file($viewPath)) {
             // Surface is consumed by the view to set data-surface attr
             $GLOBALS['_tt_surface'] = $surface;
