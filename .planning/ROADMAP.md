@@ -46,7 +46,7 @@ Plans:
 ---
 
 ### Phase 2: Student Authentication & Profiles
-**Goal**: Verified NSBM students can register against a seeded allowlist, log in, manage their profile, and log out. Session, CSRF, rate-limit, and bcrypt-only primitives land here as `Support\` services for later phases to consume. Route guards ensure later phases can assume `current_user` is authenticated.
+**Goal**: Verified NSBM students can register against a seeded allowlist, log in, manage their profile, and log out. Session, CSRF, rate-limit, and bcrypt-only primitives land here as `Support` services for later phases to consume. Route guards ensure later phases can assume `current_user` is authenticated.
 **Depends on**: Phase 1
 **Mode**: mvp
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, PROF-01, PROF-02, PROF-03, PROF-04
