@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" data-surface="student" data-theme="dark">
+<head>
+<!-- _partials/head.html -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<noscript><style>:root{color-scheme:dark;}</style></noscript>
+<title>My Tickets — TicketTrade</title>
+
+<!-- FOUC-guard: must run BEFORE the CSS link. Mirrors themeController priority. -->
+<script>
+  (function () {
+    try {
+      var stored = window.localStorage.getItem('tickettrade.theme');
+      var valid = stored === 'light' || stored === 'dark' || stored === 'system';
+      var mode = valid ? stored : 'system';
+      var resolved;
+      if (mode === 'system') {
+        var surface = document.documentElement.getAttribute('data-surface');
+        if (surface === 'admin') {
+          resolved = 'light';
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          resolved = 'dark';
+        } else {
+          resolved = 'light';
+        }
+      } else {
+        resolved = mode;
+      }
+      document.documentElement.setAttribute('data-theme', resolved);
+    } catch (e) { /* localStorage blocked, themeController will hydrate */ }
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="../assets/css/tickettrade.css">
+<script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script defer src="../assets/js/tickettrade.js"></script>
+<!-- /_partials/head.html -->
+</head>
+<body class="surface-student">
+<!-- _partials/skip-link.html -->
+<a class="skip-link" href="#main">Skip to main content</a>
+<!-- /_partials/skip-link.html -->
+
+<header class="app-header">
+  <div class="container">
+    <h1 class="app-title">My Tickets</h1>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#disputeModal">Dispute</button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <div class="container">
+    <!-- Filter tab strip (5 tabs) -->
+    <nav class="mb-4" aria-label="Ticket status filters">
+      <ul class="nav nav-pills nav-fill" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-all" data-bs-toggle="tab" data-bs-target="#pane-all" type="button" role="tab" aria-selected="true">All <span class="badge bg-secondary">2</span></button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-active" data-bs-toggle="tab" data-bs-target="#pane-active" type="button" role="tab" aria-selected="false">Active <span class="badge bg-secondary">2</span></button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-redeemed" data-bs-toggle="tab" data-bs-target="#pane-redeemed" type="button" role="tab" aria-selected="false">Redeemed</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-expired" data-bs-toggle="tab" data-bs-target="#pane-expired" type="button" role="tab" aria-selected="false">Expired</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-disputed" data-bs-toggle="tab" data-bs-target="#pane-disputed" type="button" role="tab" aria-selected="false">Disputed</button>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="pane-all" role="tabpanel" aria-labelledby="tab-all">
+        <div class="row g-3">
+
+          <!-- Ticket card 1: Active service (5 sessions, 2/5 progress) -->
+          <div class="col-12 col-md-6">
+            <article class="listing-card" style="--rot: -0.8deg">
+              <header class="listing-card-header">
+                <h2 class="listing-title">Math Tutoring - 5 sessions</h2>
+                <span class="status-badge status-active" role="status">Active</span>
+              </header>
+              <div class="listing-card-body">
+                <p class="listing-price">Rs 5,000.00</p>
+                <p class="listing-meta mb-2">Seller: Dilshan R. &middot; <span class="rank-badge rank-b">B</span></p>
+
+                <!-- Per-session progress: 2/5 confirmed -->
+                <div class="session-progress mb-3" aria-label="Sessions used">
+                  <span class="session-progress__count">2/5</span>
+                  <span class="session-progress__bar" aria-hidden="true">
+                    <span class="session-progress__fill" style="width: 40%"></span>
+                  </span>
+                  <span class="caption">sessions</span>
+                </div>
+
+                <!-- Masked code block (UX pattern: mask/reveal + copy + WhatsApp share) -->
+                <div class="ticket-code-block ticket-code-block--masked" data-ticket-code>
+                  <code class="ticket-code-block__code" data-code-value="TT-7H42-9XQM-LK81">TT-7H42-9XQM-LK81</code>
+                  <button type="button" class="ticket-code-block__toggle" aria-pressed="false" aria-label="Show ticket code">Show</button>
+                  <button type="button" class="ticket-code-block__copy" aria-label="Copy ticket code">Copy</button>
+                  <a class="ticket-code-block__share" href="https://wa.me/?text=My%20ticket%20code%3A%20TT-7H42-9XQM-LK81" target="_blank" rel="noopener" aria-label="Share on WhatsApp">WhatsApp</a>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Ticket card 2: Active product -->
+          <div class="col-12 col-md-6">
+            <article class="listing-card" style="--rot: 1.2deg">
+              <header class="listing-card-header">
+                <h2 class="listing-title">Calculus Textbook (3rd ed.)</h2>
+                <span class="status-badge status-active" role="status">Active</span>
+              </header>
+              <div class="listing-card-body">
+                <p class="listing-price">Rs 2,500.00</p>
+                <p class="listing-meta mb-2">Seller: Malithi S. &middot; <span class="rank-badge rank-a">A</span></p>
+
+                <div class="ticket-code-block ticket-code-block--masked" data-ticket-code>
+                  <code class="ticket-code-block__code" data-code-value="TT-3K7P-DR4N-ZZ05">TT-3K7P-DR4N-ZZ05</code>
+                  <button type="button" class="ticket-code-block__toggle" aria-pressed="false" aria-label="Show ticket code">Show</button>
+                  <button type="button" class="ticket-code-block__copy" aria-label="Copy ticket code">Copy</button>
+                  <a class="ticket-code-block__share" href="https://wa.me/?text=My%20ticket%20code%3A%20TT-3K7P-DR4N-ZZ05" target="_blank" rel="noopener" aria-label="Share on WhatsApp">WhatsApp</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- Skeleton-card partial (proves the partial renders) -->
+        <div class="mt-4" data-skeleton-region>
+          <h3 class="caption mb-2">While you wait</h3>
+<!-- _partials/skeleton-card.html -->
+<div class="skeleton-card" aria-hidden="true">
+  <div class="skeleton" style="height: 16px; width: 100%;"></div>
+  <div class="skeleton" style="height: 16px; width: 60%;"></div>
+  <div class="skeleton" style="height: 16px; width: 80%;"></div>
+</div>
+<!-- /_partials/skeleton-card.html -->
+        </div>
+      </div>
+
+      <!-- Empty-state pane (UX-DR-34 named copy) -->
+      <div class="tab-pane fade" id="pane-redeemed" role="tabpanel" aria-labelledby="tab-redeemed">
+<!-- _partials/empty-state.html -->
+<div class="empty-state" data-empty-state>
+  <svg class="empty-state__illustration" viewBox="0 0 96 96" aria-hidden="true">
+    <rect x="14" y="22" width="68" height="56" rx="6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="14" y1="36" x2="82" y2="36" stroke="currentColor" stroke-width="2"/>
+    <line x1="32" y1="14" x2="64" y2="14" stroke="currentColor" stroke-width="2"/>
+    <circle cx="48" cy="58" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="42" y1="58" x2="54" y2="58" stroke="currentColor" stroke-width="2"/>
+    <line x1="48" y1="52" x2="48" y2="64" stroke="currentColor" stroke-width="2"/>
+  </svg>
+  <h2 class="empty-state__title">You haven't redeemed any tickets</h2>
+  <p class="empty-state__description">Tickets appear here once the seller confirms your code at the meeting point.</p>
+  <a class="btn btn-primary" href="board-mobile.html">Browse the board</a>
+</div>
+<!-- /_partials/empty-state.html -->
+      </div>
+
+      <!-- Other panes: short placeholder (Phase 1 mockup only covers the canonical surfaces) -->
+      <div class="tab-pane fade" id="pane-active" role="tabpanel" aria-labelledby="tab-active">
+        <p class="body-md text-center py-5">Showing active tickets above in the All tab.</p>
+      </div>
+      <div class="tab-pane fade" id="pane-expired" role="tabpanel" aria-labelledby="tab-expired">
+        <p class="body-md text-center py-5">No expired tickets yet.</p>
+      </div>
+      <div class="tab-pane fade" id="pane-disputed" role="tabpanel" aria-labelledby="tab-disputed">
+        <p class="body-md text-center py-5">No disputes open.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Bootstrap dispute modal (proves the override + scrim-guard contract) -->
+<div class="modal fade" id="disputeModal" tabindex="-1" aria-labelledby="disputeModalLabel" aria-hidden="true" data-scrim-guard="2">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="disputeModalLabel">Dispute a ticket</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tell us what went wrong. The seller has 48 hours to respond.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Submit dispute</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- _partials/bottom-nav.html -->
+<nav data-component="bottom-nav" aria-label="Primary">
+  <a class="bottom-nav__item" href="board-mobile.html" data-nav-key="board">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Board</span>
+  </a>
+  <a class="bottom-nav__item" href="my-listings.html" data-nav-key="my-listings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    <span>My Listings</span>
+  </a>
+  <a class="bottom-nav__item" href="my-tickets.html" data-nav-key="my-tickets" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="7" x2="13" y2="17"/></svg>
+    <span>My Tickets</span>
+  </a>
+  <a class="bottom-nav__item" href="sales.html" data-nav-key="sales">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+    <span>Sales</span>
+  </a>
+  <a class="bottom-nav__item" href="profile.html" data-nav-key="profile">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+<!-- /_partials/bottom-nav.html -->
+
+<!-- _partials/toast-container.html -->
+<div data-component="toast" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- /_partials/toast-container.html -->
+
+<script>
+  // Wire mask/reveal toggle (Phase 1 demo; Phase 3 wires the real ticket data)
+  document.querySelectorAll('.ticket-code-block__toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var block = btn.closest('.ticket-code-block');
+      var pressed = btn.getAttribute('aria-pressed') === 'true';
+      if (pressed) {
+        block.classList.add('ticket-code-block--masked');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.setAttribute('aria-label', 'Show ticket code');
+        btn.textContent = 'Show';
+      } else {
+        block.classList.remove('ticket-code-block--masked');
+        btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('aria-label', 'Hide ticket code');
+        btn.textContent = 'Hide';
+      }
+    });
+  });
+  // Wire copy button (Phase 1 demo; uses document.execCommand as a fallback)
+  document.querySelectorAll('.ticket-code-block__copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.closest('.ticket-code-block').querySelector('.ticket-code-block__code').textContent;
+      var done = function () { window.TicketTrade && window.TicketTrade.toast.show('Code copied.', 'success'); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done).catch(done);
+        } else {
+          done();
+        }
+      } catch (e) { done(); }
+    });
+  });
+
+  // Demonstrate the toast API for Plan 01-02 verification
+  window.addEventListener('load', function () {
+    if (window.TicketTrade && window.TicketTrade.toast) {
+      window.TicketTrade.toast.show('Tickets loaded.', 'info');
+    }
+  });
+</script>
+</body>
+</html>
