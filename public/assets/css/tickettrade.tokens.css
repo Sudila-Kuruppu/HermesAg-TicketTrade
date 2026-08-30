@@ -183,6 +183,10 @@
 
 /* Dark theme (student default; admin surfaces flip via data-surface) */
 :root[data-theme="dark"] {
+  /* Aliases for ledger compatibility — same values as the dark theme defaults */
+  --color-on-surface-dark: #F5F5F5;
+  --color-surface-raised-dark: #1E1E1E;
+
 
   /* ---------- Colors - Brand ---------- */
   --color-primary: #81C784;
