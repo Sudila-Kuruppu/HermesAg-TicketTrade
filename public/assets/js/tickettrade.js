@@ -150,22 +150,350 @@
   });
 
   // ---------------------------------------------------------------------------
-  // toast (stub for Plan 01-01) — Plan 01-02 replaces with full impl
+  // toast — Plan 01-02 full implementation
+  //   show(message, type)        returns a numeric id
+  //   dismiss(id)                removes the toast with that id
+  //   Container is cached on init; cap = 3; type whitelist = success|error|warning|info
   // ---------------------------------------------------------------------------
   ComponentRegistry.register('toast', function () {
-    // Phase 1 stub: no real container, just console-log for the demo call
-    var stub = {
-      show: function (message, type) {
-        console.log('TicketTrade.toast (stub, full impl in 01-02):', type || 'info', message);
-      },
-      dismiss: function (id) {
-        console.log('TicketTrade.toast.dismiss (stub):', id);
+    var TYPES = ['success', 'error', 'warning', 'info'];
+    var QUEUE_CAP = 3;
+    var DEFAULT_MS = 4000;
+    var LONG_MS = 8000;
+    var _container = null;
+    var _queue = [];          // [{id, el, timer, remainingMs, expiresAt, paused}]
+    var _nextId = 1;
+
+    function getContainer() {
+      if (_container && document.body.contains(_container)) return _container;
+      _container = document.querySelector('[data-component="toast"]');
+      if (!_container) {
+        _container = document.createElement('div');
+        _container.setAttribute('data-component', 'toast');
+        _container.setAttribute('role', 'status');
+        _container.setAttribute('aria-live', 'polite');
+        _container.setAttribute('aria-atomic', 'true');
+        _container.className = 'toast-container';
+        document.body.appendChild(_container);
       }
-    };
-    window.TicketTrade = window.TicketTrade || {};
-    if (!window.TicketTrade.toast) {
-      window.TicketTrade.toast = stub;
+      return _container;
     }
+
+    function syncContainerRole() {
+      var container = getContainer();
+      var hasAlert = _queue.some(function (q) { return q.el.getAttribute('role') === 'alert'; });
+      container.setAttribute('role', hasAlert ? 'alert' : 'status');
+    }
+
+    function buildEl(message, type) {
+      var el = document.createElement('div');
+      el.className = 'toast toast-' + type;
+      var isAlert = type === 'error' || type === 'warning';
+      el.setAttribute('role', isAlert ? 'alert' : 'status');
+      el.setAttribute('data-toast-id', String(_nextId));
+      el.setAttribute('data-toast-type', type);
+
+      var msg = document.createElement('span');
+      msg.className = 'toast__message';
+      msg.textContent = String(message);   // textContent: no HTML injection
+      el.appendChild(msg);
+
+      if (isAlert) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'toast__dismiss';
+        btn.setAttribute('aria-label', 'Dismiss');
+        btn.setAttribute('data-toast-dismiss', '');
+        btn.textContent = '×';
+        el.appendChild(btn);
+      }
+
+      return el;
+    }
+
+    function armTimer(entry) {
+      entry.timer = setTimeout(function () {
+        removeEntry(entry);
+      }, entry.remainingMs);
+    }
+
+    function clearTimer(entry) {
+      if (entry.timer) {
+        clearTimeout(entry.timer);
+        entry.timer = null;
+        entry.remainingMs = Math.max(0, entry.expiresAt - Date.now());
+      }
+    }
+
+    function pauseEntry(entry) {
+      if (entry.paused) return;
+      clearTimer(entry);
+      entry.paused = true;
+      entry.el.classList.add('toast-paused');
+    }
+
+    function resumeEntry(entry) {
+      if (!entry.paused) return;
+      entry.paused = false;
+      entry.el.classList.remove('toast-paused');
+      armTimer(entry);
+    }
+
+    function removeEntry(entry) {
+      if (!entry || !entry.el) return;
+      clearTimer(entry);
+      if (entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
+      var idx = _queue.indexOf(entry);
+      if (idx >= 0) _queue.splice(idx, 1);
+      syncContainerRole();
+    }
+
+    function attachHoverHandlers(entry) {
+      var onEnter = function () { pauseEntry(entry); };
+      var onLeave = function () { resumeEntry(entry); };
+      entry.el.addEventListener('mouseenter', onEnter);
+      entry.el.addEventListener('mouseleave', onLeave);
+      entry.el.addEventListener('focusin', onEnter);
+      entry.el.addEventListener('focusout', onLeave);
+      if (entry.el.__dismissBtn) {
+        entry.el.__dismissBtn.addEventListener('click', function () {
+          removeEntry(entry);
+        });
+      }
+    }
+
+    function show(message, type) {
+      if (TYPES.indexOf(type) < 0) {
+        console.warn('TicketTrade.toast: unknown type', type, '- falling back to info');
+        type = 'info';
+      }
+      while (_queue.length >= QUEUE_CAP) {
+        removeEntry(_queue[0]);
+      }
+      var container = getContainer();
+      var el = buildEl(message, type);
+      var id = _nextId++;
+      var entry = {
+        id: id,
+        el: el,
+        timer: null,
+        remainingMs: (type === 'error' || type === 'warning') ? LONG_MS : DEFAULT_MS,
+        expiresAt: 0,
+        paused: false
+      };
+      entry.expiresAt = Date.now() + entry.remainingMs;
+      var dismissBtn = el.querySelector('[data-toast-dismiss]');
+      entry.el.__dismissBtn = dismissBtn;
+      _queue.push(entry);
+      container.appendChild(el);
+      syncContainerRole();
+      attachHoverHandlers(entry);
+      armTimer(entry);
+      return id;
+    }
+
+    function dismiss(id) {
+      var entry = _queue.find(function (q) { return q.id === id; });
+      if (entry) removeEntry(entry);
+    }
+
+    window.TicketTrade = window.TicketTrade || {};
+    window.TicketTrade.toast = { show: show, dismiss: dismiss };
+
+    // Touch the container now so it's mounted and aria attributes are set
+    getContainer();
+  });
+
+  // ---------------------------------------------------------------------------
+  // bottomNav — sets aria-current="page" on the item matching window.location
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('bottomNav', function () {
+    var navs = document.querySelectorAll('[data-component="bottom-nav"]');
+    var path = (window.location.pathname || '/').toLowerCase();
+    var currentFile = path.substring(path.lastIndexOf('/') + 1) || path;
+
+    navs.forEach(function (nav) {
+      var items = nav.querySelectorAll('.bottom-nav__item');
+      items.forEach(function (item) {
+        item.removeAttribute('aria-current');
+        var href = (item.getAttribute('href') || '').toLowerCase();
+        var hrefFile = href.substring(href.lastIndexOf('/') + 1);
+        // Match if href resolves to current file (board-mobile.html, my-tickets.html, etc.)
+        // or if href is the root / and current path is /
+        if (hrefFile && hrefFile === currentFile) {
+          item.setAttribute('aria-current', 'page');
+        } else if ((href === '/' || href === '') && (path === '/' || path === '/index.php')) {
+          item.setAttribute('aria-current', 'page');
+        }
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // skeleton — applies the shimmer to elements with [data-skeleton] or .skeleton
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('skeleton', function () {
+    var nodes = document.querySelectorAll('[data-skeleton], .skeleton');
+    nodes.forEach(function (el) {
+      if (!el.classList.contains('skeleton')) {
+        el.classList.add('skeleton');
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // listViewToggle — persists cork/list state to sessionStorage.tickettrade.listView
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('listViewToggle', function () {
+    var STORAGE_KEY = 'tickettrade.listView';
+    var toggles = document.querySelectorAll('[data-component="list-view-toggle"]');
+
+    function readStored() {
+      try {
+        var v = window.sessionStorage.getItem(STORAGE_KEY);
+        return v === 'cork' || v === 'list' ? v : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeStored(value) {
+      try { window.sessionStorage.setItem(STORAGE_KEY, value); } catch (e) { /* no-op */ }
+    }
+
+    toggles.forEach(function (toggle) {
+      var buttons = toggle.querySelectorAll('button');
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          buttons.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+          btn.setAttribute('aria-pressed', 'true');
+          var value = btn.getAttribute('data-value') || (btn.classList.contains('list-view-toggle__list') ? 'list' : 'cork');
+          writeStored(value);
+          document.documentElement.setAttribute('data-list-view', value);
+        });
+      });
+
+      var stored = readStored();
+      if (stored) {
+        buttons.forEach(function (b) {
+          var v = b.getAttribute('data-value') || (b.classList.contains('list-view-toggle__list') ? 'list' : 'cork');
+          b.setAttribute('aria-pressed', v === stored ? 'true' : 'false');
+        });
+        document.documentElement.setAttribute('data-list-view', stored);
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // modalScrimGuard — ignore scrim clicks for the duration specified in the attribute
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('modalScrimGuard', function () {
+    var guards = document.querySelectorAll('[data-scrim-guard]');
+    guards.forEach(function (el) {
+      var ms = parseInt(el.getAttribute('data-scrim-guard'), 10);
+      if (!ms || ms <= 0) ms = 2000;
+      var armed = false;
+      var activateTimer = null;
+
+      function activate() {
+        el.classList.add('modal-scrim-guard-active');
+        armed = true;
+        if (activateTimer) clearTimeout(activateTimer);
+        activateTimer = setTimeout(function () {
+          el.classList.remove('modal-scrim-guard-active');
+          armed = false;
+        }, ms);
+      }
+
+      el.addEventListener('mousedown', function (e) {
+        if (armed && e.target === el) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      });
+      el.addEventListener('click', function (e) {
+        if (armed && e.target === el) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      });
+
+      // If a modal is shown, reactivate on each show event
+      el.addEventListener('shown.bs.modal', activate);
+      activate();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // starRating — keyboard support for the fieldset-based star input
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('starRating', function () {
+    var fieldsets = document.querySelectorAll('[data-component="star-rating"]');
+    fieldsets.forEach(function (fs) {
+      var inputs = fs.querySelectorAll('input[type="radio"]');
+      if (!inputs.length) return;
+      var sorted = Array.prototype.slice.call(inputs).sort(function (a, b) {
+        return parseInt(a.value, 10) - parseInt(b.value, 10);
+      });
+
+      function setRating(n) {
+        var target = sorted.find(function (i) { return parseInt(i.value, 10) === n; });
+        if (target) {
+          target.checked = true;
+          target.focus();
+        }
+      }
+
+      fs.addEventListener('keydown', function (e) {
+        var current = parseInt((fs.querySelector('input[type="radio"]:checked') || {}).value || '0', 10);
+        var next = current;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+          next = Math.min(5, current + 1 || 1);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+          next = Math.max(0, current - 1);
+        } else if (e.key === 'Home') {
+          next = 1;
+        } else if (e.key === 'End') {
+          next = 5;
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          next = 0;
+        }
+        if (next !== current) {
+          e.preventDefault();
+          if (next === 0) {
+            sorted.forEach(function (i) { i.checked = false; });
+            return;
+          }
+          setRating(next);
+        }
+      });
+
+      inputs.forEach(function (input) {
+        input.addEventListener('change', function () {
+          var n = parseInt(input.value, 10);
+          input.setAttribute('aria-label', 'Rating: ' + n + ' of 5');
+        });
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // empty/error state — wires the retry button (data-error-state) on click
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('emptyErrorRetry', function () {
+    var retries = document.querySelectorAll('[data-error-state] .error-state__retry');
+    retries.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var container = btn.closest('[data-error-state]');
+        console.info('TicketTrade retry:', container);
+        if (container) {
+          container.dispatchEvent(new CustomEvent('tickettrade:retry', {
+            bubbles: true,
+            detail: { source: 'error-state', target: container }
+          }));
+        }
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

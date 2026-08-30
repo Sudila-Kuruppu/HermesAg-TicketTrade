@@ -9,8 +9,7 @@
 
 @import url("./tickettrade.tokens.css");
 @import url("./tickettrade.bootstrap-overrides.css");
-
-/* ----- Component-layer additions land here in Plan 01-02 ----- */
+@import url("./tickettrade.components.css");
 
 /* Base body styling — uses tokens, no hex */
 body {
