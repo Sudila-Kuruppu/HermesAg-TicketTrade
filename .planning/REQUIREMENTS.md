@@ -110,16 +110,16 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 
 ### Cross-Cutting
 
-- [ ] **UX-01**: Toast system for all async actions (success/error/info types); auto-dismiss 4s; queue max 3; ARIA live region (`role='status'` for success/info, `role='alert'` for error/warning); bottom-right desktop / top mobile
-- [ ] **UX-02**: Skeleton loading on cold load for board (12 placeholder cards), listing modal, My Tickets, Sales, Profile, My Listings, Purchase History, Leaderboards, Admin Dashboard, Admin Listings, Admin Reports, Admin Users; surface-specific shimmer (1s, surface-container-high)
-- [ ] **UX-03**: Empty/error states for board, My Tickets, Sales, My Listings, Purchase History, Leaderboards, admin queues (UX-DR-34); "Couldn't load listings. Tap to retry." on fetch failure
-- [ ] **UX-04**: Design token system in `public/assets/css/tickettrade.css`: brand primary #1B5E20 (NSBM green), trust amber #F57F17, info blue #0277BD, six tier colors, semantic success/error/warning/info, eight status role fills, light + dark neutral surfaces, corkboard tokens, code surface, WhatsApp #25D366; AA-pass on-secondary and darkened status-sold/status-disputed text tokens
-- [ ] **UX-05**: Typography tokens (system-ui body + Inter display/headline + mono-code monospace with letter-spacing 0.04em for ticket codes and `points_log.event_uuid`)
-- [ ] **UX-06**: Theme persistence: student surfaces default dark mode, admin surfaces default light mode; user choice persisted in localStorage; system preference is first-visit fallback; toggle at `/settings`
-- [ ] **UX-07**: WCAG 2.1 AA floor (NFR-USE-003): text ≥4.5:1, UI elements ≥3:1, large text ≥3:1; verified via contrast ledger + axe-core in test plan
-- [ ] **UX-08**: Keyboard navigation floor (NFR-USE-002): all modals trap focus, ESC closes, focus returns to trigger, focus-visible 2px outlines; skip link first focusable element on every page jumping to `#main`
-- [ ] **UX-09**: Bottom nav: 64px tall, fixed, 5 items (Board, My Listings, My Tickets, Sales, Profile); hidden on ≥768px; `aria-current='page'` on active; no badge counts (anti-pattern)
-- [ ] **UX-10**: Avatar picker: grid of 12 predefined illustrations (4×3 desktop, 3×4 mobile); circular thumbnails; 2px primary ring on selection; no upload, no custom images
+- [x] **UX-01**: Toast system for all async actions (success/error/info types); auto-dismiss 4s; queue max 3; ARIA live region (`role='status'` for success/info, `role='alert'` for error/warning); bottom-right desktop / top mobile
+- [x] **UX-02**: Skeleton loading on cold load for board (12 placeholder cards), listing modal, My Tickets, Sales, Profile, My Listings, Purchase History, Leaderboards, Admin Dashboard, Admin Listings, Admin Reports, Admin Users; surface-specific shimmer (1s, surface-container-high)
+- [x] **UX-03**: Empty/error states for board, My Tickets, Sales, My Listings, Purchase History, Leaderboards, admin queues (UX-DR-34); "Couldn't load listings. Tap to retry." on fetch failure
+- [x] **UX-04**: Design token system in `public/assets/css/tickettrade.css`: brand primary #1B5E20 (NSBM green), trust amber #F57F17, info blue #0277BD, six tier colors, semantic success/error/warning/info, eight status role fills, light + dark neutral surfaces, corkboard tokens, code surface, WhatsApp #25D366; AA-pass on-secondary and darkened status-sold/status-disputed text tokens
+- [x] **UX-05**: Typography tokens (system-ui body + Inter display/headline + mono-code monospace with letter-spacing 0.04em for ticket codes and `points_log.event_uuid`)
+- [x] **UX-06**: Theme persistence: student surfaces default dark mode, admin surfaces default light mode; user choice persisted in localStorage; system preference is first-visit fallback; toggle at `/settings`
+- [x] **UX-07**: WCAG 2.1 AA floor (NFR-USE-003): text ≥4.5:1, UI elements ≥3:1, large text ≥3:1; verified via contrast ledger + axe-core in test plan
+- [x] **UX-08**: Keyboard navigation floor (NFR-USE-002): all modals trap focus, ESC closes, focus returns to trigger, focus-visible 2px outlines; skip link first focusable element on every page jumping to `#main`
+- [x] **UX-09**: Bottom nav: 64px tall, fixed, 5 items (Board, My Listings, My Tickets, Sales, Profile); hidden on ≥768px; `aria-current='page'` on active; no badge counts (anti-pattern)
+- [x] **UX-10**: Avatar picker: grid of 12 predefined illustrations (4×3 desktop, 3×4 mobile); circular thumbnails; 2px primary ring on selection; no upload, no custom images
 - [ ] **SEC-01**: All SQL via prepared statements (PDO); no concatenation (NFR-SEC-002)
 - [ ] **SEC-02**: CSRF tokens on all state-changing forms (synchronizer token pattern, `hash_equals()` validation) (NFR-SEC-003)
 - [ ] **SEC-03**: File uploads: 4-layer validation (finfo MIME, getimagesize dimensions ≤4000px/5MB, magic bytes, GD re-encode to WebP); max chunk 2MB, total 5MB; default 8 images/listing; Uppy.js `chunkSize` MUST be 2 MiB (NFR-SEC-004)
@@ -226,6 +226,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-03 | Phase 9 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 111 total
 - Mapped to phases: 111
 - Unmapped: 0

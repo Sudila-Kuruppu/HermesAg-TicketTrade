@@ -13,7 +13,7 @@ Build TicketTrade (NSBM campus-only peer-to-peer marketplace) in 9 sequential ph
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: UX Foundation & Design System** — Tokens, theme, a11y floor, toast container, bottom nav, mockup-driven surfaces
+- [x] **Phase 1: UX Foundation & Design System** — Tokens, theme, a11y floor, toast container, bottom nav, mockup-driven surfaces (completed 2026-08-30)
 - [ ] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives
 - [ ] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot
 - [ ] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
@@ -41,16 +41,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   6. Skeleton shimmer (1s, surface-container-high fill) renders on board, listing modal, My Tickets, Sales, Profile, My Listings, Purchase History, Leaderboards, admin surfaces
   7. Empty/error states with named copy (UX-DR-34) render for every list surface
 
-**Plans**: 2 plans
+**Plans**: 2/2 plans executed
 
 Plans:
+
+- [x] 01-01-PLAN.md
+- [x] 01-02-PLAN.md
+
 **Wave 1**
 
-- [ ] 01-01: Design token system + theme persistence + a11y floor (CSS custom properties, Inter/system-ui/mono-code, breakpoints, theme controller)
+- [x] 01-01: Design token system + theme persistence + a11y floor (CSS custom properties, Inter/system-ui/mono-code, breakpoints, theme controller)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02: Mockup-driven shells — toast container, bottom nav, skeleton shimmer, empty/error states, three promoted mockups wired to tokens
+- [x] 01-02: Mockup-driven shells — toast container, bottom nav, skeleton shimmer, empty/error states, three promoted mockups wired to tokens
 
 ---
 
