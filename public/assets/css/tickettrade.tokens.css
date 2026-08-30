@@ -1,0 +1,314 @@
+/* =============================================================================
+   TicketTrade — Design Tokens (brand layer)
+   -----------------------------------------------------------------------------
+   Single source of truth for color, typography, spacing, shape, elevation,
+   and motion tokens. No other file in the project may contain a hex literal
+   (verified by tests/Smoke/01-01/contrast_ledger.test.php and grep).
+
+   Token names map 1:1 to DESIGN.md frontmatter keys per D-02.
+
+   Token groups (in order, grep-friendly):
+     Colors - Brand
+     Colors - Semantic
+     Colors - Status
+     Colors - Tier
+     Colors - Surface (light)
+     Colors - Surface (dark)
+     Colors - Corkboard
+     Colors - Code surface
+     Colors - Velocity / freeze
+     Typography
+     Spacing
+     Shape
+     Elevation
+     Motion
+   ============================================================================= */
+
+/* Light theme (student surfaces default to dark; admin defaults to light) */
+:root[data-theme="light"] {
+
+  /* ---------- Colors - Brand ---------- */
+  --color-primary: #1B5E20;
+  --color-primary-dark: #2E7D32;
+  --color-primary-light: #4CAF50;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #C8E6C9;
+  --color-on-primary-container: #1B5E20;
+
+  /* ---------- Colors - Semantic ---------- */
+  --color-secondary: #F57F17;
+  --color-secondary-dark: #F9A825;
+  --color-secondary-light: #FFB300;
+  --color-on-secondary: #1A1A1A;
+  --color-secondary-container: #FFF8E1;
+  --color-on-secondary-container: #4E342E;
+
+  --color-tertiary: #0277BD;
+  --color-tertiary-dark: #0288D1;
+  --color-tertiary-light: #03A9F4;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #E1F5FE;
+  --color-on-tertiary-container: #01579B;
+
+  --color-success: #2E7D32;
+  --color-warning: #F9A825;
+  --color-error: #C62828;
+  --color-info: #0277BD;
+
+  /* ---------- Colors - Status (8 pairs) ---------- */
+  --color-status-pending-fill: #FFF8E1;
+  --color-status-pending-text: #4E342E;
+  --color-status-active-fill: #E8F5E9;
+  --color-status-active-text: #1B5E20;
+  --color-status-rejected-fill: #FFEBEE;
+  --color-status-rejected-text: #B71C1C;
+  --color-status-redeemed-fill: #E3F2FD;
+  --color-status-redeemed-text: #01579B;
+  --color-status-expired-fill: #ECEFF1;
+  --color-status-expired-text: #37474F;
+  --color-status-sold-fill: #EDE7F6;
+  --color-status-sold-text: #4527A0;
+  --color-status-disputed-fill: #FFF3E0;
+  --color-status-disputed-text: #E65100;
+  --color-status-removed-fill: #F5F5F5;
+  --color-status-removed-text: #616161;
+
+  /* ---------- Colors - Tier (6 ranks) ---------- */
+  --color-rank-e: #9E9E9E;
+  --color-rank-d: #1976D2;
+  --color-rank-c: #1B5E20;
+  --color-rank-b: #F9A825;
+  --color-rank-a: #C62828;
+  --color-rank-s: #212121;
+
+  /* ---------- Colors - Surface (light) ---------- */
+  --color-surface-base: #FAFAFA;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-container: #F5F5F5;
+  --color-surface-container-low: #FAFAFA;
+  --color-surface-container-high: #ECECEC;
+  --color-surface-container-highest: #E0E0E0;
+  --color-on-surface: #1A1A1A;
+  --color-on-surface-variant: #555555;
+  --color-outline: #757575;
+  --color-outline-variant: #E0E0E0;
+  --color-border-hairline: #EEEEEE;
+  --color-shadow-color: rgba(0, 0, 0, 0.12);
+
+  /* ---------- Colors - Corkboard ---------- */
+  --color-cork-base: #C8A878;
+  --color-cork-grain: #A88456;
+  --color-pin-red: #C62828;
+  --color-pin-blue: #1565C0;
+
+  /* ---------- Colors - Code surface ---------- */
+  --color-code-bg: #1E1E1E;
+  --color-code-text: #FFD600;
+
+  /* ---------- Colors - Velocity / freeze ---------- */
+  --color-velocity-flag: #C62828;
+  --color-velocity-flag-bg: #FFEBEE;
+  --color-points-frozen: #0277BD;
+  --color-points-frozen-bg: #E1F5FE;
+
+  --paper-card-bg: #FFF8E7;
+  --paper-card-text: #1A1A1A;
+
+  --paper-card-bg: #FAF3E0;
+  --paper-card-text: #1A1A1A;
+
+  /* ---------- Typography ---------- */
+  --font-family-display: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --font-size-display-lg: 32px;
+  --font-weight-display-lg: 700;
+  --line-height-display-lg: 1.2;
+  --letter-spacing-display-lg: -0.01em;
+
+  --font-size-display-md: 24px;
+  --font-weight-display-md: 700;
+  --line-height-display-md: 1.25;
+
+  --font-size-headline-md: 20px;
+  --font-weight-headline-md: 600;
+  --line-height-headline-md: 1.3;
+
+  --font-size-body-lg: 16px;
+  --font-size-body-md: 14px;
+  --font-size-body-sm: 12px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ---------- Spacing ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  --gutter-mobile: 16px;
+  --gutter-desktop: 32px;
+  --section-gap: 24px;
+  --card-gap: 16px;
+
+  /* ---------- Shape ---------- */
+  --shape-sm: 4px;
+  --shape-md: 8px;
+  --shape-lg: 12px;
+  --shape-xl: 16px;
+  --shape-full: 9999px;
+
+  /* ---------- Elevation ---------- */
+  --elevation-1: 0 0.5px 0 rgba(0, 0, 0, 0.12);
+  --elevation-2: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --elevation-3: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --elevation-4: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --elevation-8: 0 8px 24px rgba(0, 0, 0, 0.16);
+
+  /* ---------- Motion ---------- */
+  --motion-hover: 200ms ease;
+  --motion-press: 100ms ease;
+  --motion-skeleton: 1s;
+  --motion-legend-glow: 2.4s ease-in-out infinite;
+  --motion-modal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark theme (student default; admin surfaces flip via data-surface) */
+:root[data-theme="dark"] {
+
+  /* ---------- Colors - Brand ---------- */
+  --color-primary: #81C784;
+  --color-primary-dark: #A5D6A7;
+  --color-primary-light: #C8E6C9;
+  --color-on-primary: #0A1F0A;
+  --color-primary-container: #1B5E20;
+  --color-on-primary-container: #C8E6C9;
+
+  /* ---------- Colors - Semantic ---------- */
+  --color-secondary: #FFB300;
+  --color-secondary-dark: #FFC107;
+  --color-secondary-light: #FFD54F;
+  --color-on-secondary: #1A1A1A;
+  --color-secondary-container: #4E342E;
+  --color-on-secondary-container: #FFF8E1;
+
+  --color-tertiary: #4FC3F7;
+  --color-tertiary-dark: #81D4FA;
+  --color-tertiary-light: #B3E5FC;
+  --color-on-tertiary: #012B45;
+  --color-tertiary-container: #01579B;
+  --color-on-tertiary-container: #E1F5FE;
+
+  --color-success: #81C784;
+  --color-warning: #FFB300;
+  --color-error: #EF5350;
+  --color-info: #4FC3F7;
+
+  /* ---------- Colors - Status (8 pairs) ---------- */
+  --color-status-pending-fill: #4E342E;
+  --color-status-pending-text: #FFF8E1;
+  --color-status-active-fill: #1B5E20;
+  --color-status-active-text: #C8E6C9;
+  --color-status-rejected-fill: #B71C1C;
+  --color-status-rejected-text: #FFEBEE;
+  --color-status-redeemed-fill: #01579B;
+  --color-status-redeemed-text: #E1F5FE;
+  --color-status-expired-fill: #37474F;
+  --color-status-expired-text: #ECEFF1;
+  --color-status-sold-fill: #4527A0;
+  --color-status-sold-text: #EDE7F6;
+  --color-status-disputed-fill: #E65100;
+  --color-status-disputed-text: #FFF3E0;
+  --color-status-removed-fill: #424242;
+  --color-status-removed-text: #F5F5F5;
+
+  /* ---------- Colors - Tier ---------- */
+  --color-rank-e: #BDBDBD;
+  --color-rank-d: #64B5F6;
+  --color-rank-c: #81C784;
+  --color-rank-b: #FFD54F;
+  --color-rank-a: #EF5350;
+  --color-rank-s: #FAFAFA;
+
+  /* ---------- Colors - Surface (dark) ---------- */
+  --color-surface-base: #121212;
+  --color-surface-raised: #1E1E1E;
+  --color-surface-container: #232323;
+  --color-surface-container-low: #1A1A1A;
+  --color-surface-container-high: #2A2A2A;
+  --color-surface-container-highest: #333333;
+  --color-on-surface: #F5F5F5;
+  --color-on-surface-variant: #BDBDBD;
+  --color-outline: #9E9E9E;
+  --color-outline-variant: #424242;
+  --color-border-hairline: #2A2A2A;
+  --color-shadow-color: rgba(0, 0, 0, 0.5);
+
+  /* Corkboard / code / velocity tokens stay the same in both themes
+     because they are decorative surfaces or content surfaces */
+
+  /* ---------- Typography / Spacing / Shape / Elevation / Motion ---------- */
+  /* Identical to light theme — the structural tokens don't change. */
+  --font-family-display: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --font-size-display-lg: 32px;
+  --font-weight-display-lg: 700;
+  --line-height-display-lg: 1.2;
+  --letter-spacing-display-lg: -0.01em;
+  --font-size-display-md: 24px;
+  --font-weight-display-md: 700;
+  --line-height-display-md: 1.25;
+  --font-size-headline-md: 20px;
+  --font-weight-headline-md: 600;
+  --line-height-headline-md: 1.3;
+  --font-size-body-lg: 16px;
+  --font-size-body-md: 14px;
+  --font-size-body-sm: 12px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  --gutter-mobile: 16px;
+  --gutter-desktop: 32px;
+  --section-gap: 24px;
+  --card-gap: 16px;
+
+  --shape-sm: 4px;
+  --shape-md: 8px;
+  --shape-lg: 12px;
+  --shape-xl: 16px;
+  --shape-full: 9999px;
+
+  --elevation-1: 0 0.5px 0 rgba(0, 0, 0, 0.5);
+  --elevation-2: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elevation-3: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --elevation-4: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --elevation-8: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+  --motion-hover: 200ms ease;
+  --motion-press: 100ms ease;
+  --motion-skeleton: 1s;
+  --motion-legend-glow: 2.4s ease-in-out infinite;
+  --motion-modal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}

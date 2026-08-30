@@ -1,0 +1,30 @@
+# TicketTrade — Apache Rewrite Rules
+# 
+# Production Apache config. The dev server uses public/router.php instead.
+# Per AD-3: /admin/* routes dispatch via public/admin/index.php.
+# The admin rule MUST be first so it matches before the catch-all.
+
+RewriteEngine On
+
+# Block direct access to sensitive files
+<FilesMatch "^\.(env|gitignore|gitkeep)$">
+    Require all denied
+</FilesMatch>
+
+# Admin routes first (before the catch-all)
+RewriteRule ^admin/(.*)$ admin/index.php [QSA,L]
+
+# Existing files and directories are served directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else dispatches via the student front controller
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Security headers (full set lands in Phase 9 via Support\ResponseHeaders)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

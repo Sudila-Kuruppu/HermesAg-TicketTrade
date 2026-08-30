@@ -1,0 +1,27 @@
+# Composer
+/vendor/
+composer.phar
+
+# PHPUnit
+/.phpunit.cache/
+/phpunit.xml.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local env
+.env
+.env.local
+
+# Data uploads (configured outside webroot)
+/data/uploads/
+
+# Logs
+*.log
