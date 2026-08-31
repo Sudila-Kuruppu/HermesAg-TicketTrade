@@ -78,10 +78,14 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
 
-- [ ] 02-01: Auth Support primitives — bcrypt-only `Auth/Service/auth_service.php`, `Support\Csrf`, `Support\RateLimit`, `Support\Crypto`, `Support\ResponseHeaders`, route guards, session config at bootstrap
-- [ ] 02-02: Registration + Login flows — `/register`, `/login`, `/logout` Actions with allowlist validation, simulated email verification, anti-enumeration error UX, profile edit `/profile` Action
-- [ ] 02-03: Profile read view — `/profile/{nickname}` View with rank badge, star row, transaction counts, five tabs (other tabs load stubs until later phases)
+- [ ] 02-01-PLAN.md — substrate + migrations + route guards (Support\Auth, Csrf, RateLimit, Crypto, ResponseHeaders, Db, Error, View; 7 migrations + migrate.php; 12 avatar SVGs; route map populated; front controllers wired)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — register/login/logout/forgot-password/reset/verify/profile-edit/settings flows (Auth/Service/auth_service.php, User/Service/user_service.php, Points stub, all views, full route map)
+- [ ] 02-03-PLAN.md — public /profile/{nickname} read view (User/Action/public_profile_action.php, User/View/public_profile.php, summary header with rank badge + verified checkmark + 0 transaction counts + "no reviews yet")
 
 ---
 
