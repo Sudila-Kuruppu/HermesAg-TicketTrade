@@ -1,0 +1,10 @@
+-- migrations/006_student_id_allowlist.sql
+-- Phase 2 Plan 02-01
+-- Purpose:  Documentation no-op. The student_id_allowlist table was created
+--           alongside users in 002_users_auth.sql. This file exists only
+--           to keep the lex order meaningful for the +50 stub's lookup
+--           pattern documented in 02-CONTEXT.md.
+-- AD binds: AD-6.
+-- Reqs:     OPS-02 (migrations are runnable end-to-end).
+-- Depends:  002_users_auth.sql.
+-- Author:   Phase 2 (2026-08-31)
