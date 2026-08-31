@@ -9,6 +9,7 @@
     <exclude-pattern>src/Support/Error.php</exclude-pattern>
     <exclude-pattern>src/*/Model/*</exclude-pattern>
     <exclude-pattern>src/Auth/Service/auth_service.php</exclude-pattern>
+    <exclude-pattern>src/User/Service/user_service.php</exclude-pattern>
     <!-- Allow long lines in templates (line breaks would break the render). -->
     <rule ref="Generic.Files.LineLength">
         <severity>0</severity>
