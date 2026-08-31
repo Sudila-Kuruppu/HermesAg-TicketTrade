@@ -30,7 +30,11 @@ class Db
     public static function pdo(): PDO
     {
         if (self::$pdo === null) {
-            $config = require APP_ROOT . '/config/db.php';
+            // APP_ENV=test → config/db.test.php; otherwise config/db.php.
+            $configFile = (getenv('APP_ENV') === 'test')
+                ? APP_ROOT . '/config/db.test.php'
+                : APP_ROOT . '/config/db.php';
+            $config = require $configFile;
             self::$pdo = self::connectFromConfig($config);
         }
         return self::$pdo;

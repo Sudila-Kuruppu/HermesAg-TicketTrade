@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          cacheDirectory=".phpunit.cache"
          executionOrder="random"
@@ -12,10 +12,17 @@
         <testsuite name="smoke">
             <directory>tests/Smoke</directory>
         </testsuite>
+        <testsuite name="phase-2">
+            <directory>tests/Unit/Phase02</directory>
+            <directory>tests/Integration/Phase02</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>src</directory>
         </include>
     </source>
+    <php>
+        <server name="APP_ENV" value="test"/>
+    </php>
 </phpunit>
