@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 2
 current_phase_name: Student Authentication & Profiles
 status: executing
-stopped_at: "Phase 02 Plan 01 (02-01) complete"
-last_updated: "2026-08-31T18:30:00.000Z"
+stopped_at: "Phase 02 Plan 03 (02-03) complete"
+last_updated: "2026-08-31T20:05:00.000Z"
 last_activity: 2026-08-31
-last_activity_desc: Phase 2 Plan 02-01 (Support substrate, migrations, route guards) executed
+last_activity_desc: Phase 2 Plan 02-03 (public /profile/{nickname} read view) executed
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
-  percent: 18
+  completed_plans: 4
+  percent: 22
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 2 (Student Authentication & Profiles) — EXECUTING
-Plan: 1 of 3 — Phase 2 Plan 02-01 (Support substrate) COMPLETE
+Plan: 3 of 3 — Phase 2 Plan 02-03 (Public profile read view) COMPLETE
 Status: Executing Phase 2
-Last activity: 2026-08-31 — Phase 2 Plan 02-01 complete
+Last activity: 2026-08-31 — Phase 2 Plan 02-03 complete
 
-Progress: [████░░░░░░] 25% of Phase 2
+Progress: [███████████░] 67% of Phase 2 (2 plans remaining: 02-02 in flight, plan 02-03 done)
 
 ## Performance Metrics
 
@@ -66,6 +66,8 @@ Recent decisions affecting current work:
 - **2026-08-31 (Phase 2 Plan 02-01)**: Migration `005_password_resets.sql` additionally creates the `points_log` table (AD-10) so the migration count stays at 7 per the plan's done-criteria while still shipping the +50 stub's required table.
 - **2026-08-31 (Phase 2 Plan 02-01)**: The admin guard runs BEFORE the auth guard in the Router so unauthenticated access to `/admin/*` returns 404 (D-10), not a 302 to /login that would leak the route.
 - **2026-08-31 (Phase 2 Plan 02-01)**: `Support\Db::pdo()` now reads `APP_ENV=test` and selects `config/db.test.php` so the integration tests target the throwaway test database while the dev server targets the dev database.
+- **2026-08-31 (Phase 2 Plan 02-03)**: Public profile lookup (`User\Service\user_service::getByNicknameForPublicProfile`) uses `BINARY nickname = ?` because the `users.nickname` column is `utf8mb4_unicode_ci` (case-insensitive by default) and D-15 requires the URL to be the literal stored value. Plan 02-02's owner-edit lookup uses `LOWER(nickname) = LOWER(?)` for case-insensitive nickname matching; both lookups coexist on `User\Model\user_model::findByNickname` (the SQL lives in the Service for the public read; the Model stays as Plan 02-02's case-insensitive canonical).
+- **2026-08-31 (Phase 2 Plan 02-03)**: Tests live at `tests/Integration/Phase02/User/...` (existing convention), NOT the plan-spec'd `tests/Integration/02/User/...`. The `02` segment is not a valid PHP namespace component (PHP parser rejects numeric-leading namespace segments with "unexpected token '\\'"). Plan 02-02 will hit the same root cause; the wave-merge should pick one path (Phase02/ recommended).
 
 ### Pending Todos
 
@@ -86,12 +88,12 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Phase 02 Plan 01 (02-01) complete
-**Resume file:** .planning/phases/02-student-authentication-profiles/02-01-SUMMARY.md
+**Stopped at:** Phase 02 Plan 03 (02-03) complete
+**Resume file:** .planning/phases/02-student-authentication-profiles/02-03-SUMMARY.md
 
-**Last session:** 2026-08-31T18:30:00.000Z
+**Last session:** 2026-08-31T20:05:00.000Z
 **Resumed:** N/A
-**Next session pickup:** Run `/gsd-execute-phase 2` to dispatch Plan 02-02 (register/login/logout Actions + supporting Views) or `/gsd-plan-phase 2` to plan 02-02 first.
+**Next session pickup:** Plan 02-02 lands the register/login/profile-edit flows in parallel; the wave-merge step should reconcile the 02 vs Phase02 test-path conflict and confirm User\Model\user_model::findByNickname landed as case-insensitive.
 
 ---
 *State initialized: 2026-08-26*

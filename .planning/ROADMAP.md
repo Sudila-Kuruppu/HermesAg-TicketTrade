@@ -85,7 +85,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [ ] 02-02-PLAN.md — register/login/logout/forgot-password/reset/verify/profile-edit/settings flows (Auth/Service/auth_service.php, User/Service/user_service.php, Points stub, all views, full route map)
-- [ ] 02-03-PLAN.md — public /profile/{nickname} read view (User/Action/public_profile_action.php, User/View/public_profile.php, summary header with rank badge + verified checkmark + 0 transaction counts + "no reviews yet")
+- [x] 02-03-PLAN.md — public /profile/{nickname} read view (User/Action/public_profile_action.php, User/View/public_profile.php, summary header with rank badge + verified checkmark + 0 transaction counts + "no reviews yet")
 
 ---
 
