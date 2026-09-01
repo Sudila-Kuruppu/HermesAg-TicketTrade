@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Support\Csrf Token Management
  *

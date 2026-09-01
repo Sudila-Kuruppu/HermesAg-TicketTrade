@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Support\ResponseHeaders
  *

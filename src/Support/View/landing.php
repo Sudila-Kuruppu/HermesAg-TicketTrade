@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Phase 1 Stub Landing Page
  *
