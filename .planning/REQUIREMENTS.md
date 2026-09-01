@@ -22,21 +22,21 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 
 ### Listings
 
-- [ ] **LST-01**: Seller can create/edit/delete listings (CRUD) — title, description, price (LKR stored as integer cents `price_cents`), category, type ENUM `product` | `service`, quantity (default 1), multiple images (primary thumbnail + gallery), condition (for products: New, Like New, Good, Fair), service details (duration_minutes, delivery_method, availability)
-- [ ] **LST-02**: Listing state machine: `draft → pending → active | rejected`; `sold` when `quantity_sold == quantity`; `removed` by admin moderation on `active` listing
+- [x] **LST-01**: Seller can create/edit/delete listings (CRUD) — title, description, price (LKR stored as integer cents `price_cents`), category, type ENUM `product` | `service`, quantity (default 1), multiple images (primary thumbnail + gallery), condition (for products: New, Like New, Good, Fair), service details (duration_minutes, delivery_method, availability)
+- [x] **LST-02**: Listing state machine: `draft → pending → active | rejected`; `sold` when `quantity_sold == quantity`; `removed` by admin moderation on `active` listing
 - [ ] **LST-03**: Board view: responsive grid (corkboard default + plain-grid list-view toggle persisted per session), category tabs/filter, keyword search (MySQL FULLTEXT), shows available quantity
 - [ ] **LST-04**: Hover transition on listing card: subtle lift + shadow + border glow (CSS `transform: translateY(-4px)`), suppressed on touch and `prefers-reduced-motion`
 - [ ] **LST-05**: Listing modal (full-screen): image carousel, seller info with rank badge, "Buy Now" → confirmation modal → ticket creation
 - [ ] **LST-06**: Listing modal navigation: Next/Previous in category, ESC + click backdrop close, keyboard arrows (←/→), swipe on mobile, focus returns to trigger on close
-- [ ] **LST-07**: Submission flow: brand-new listings enter `pending`; admin approve/reject; otherwise hourly cron auto-approves 24h after submission (`approved_at = NOW()`, `approved_by NULL`)
+- [x] **LST-07**: Submission flow: brand-new listings enter `pending`; admin approve/reject; otherwise hourly cron auto-approves 24h after submission (`approved_at = NOW()`, `approved_by NULL`)
 - [ ] **LST-08**: Products priced in integer cents; services priced per session in integer cents (duration_minutes documents typical session length but does not affect pricing)
-- [ ] **LST-09**: Edit/delete allowed only on own listings AND only when status ∈ {draft, pending, active, rejected}; fast-track — edit to `active` listing keeps it live behind a `review_flag`; admin queue surfaces flagged listings alongside pending ones
+- [x] **LST-09**: Edit/delete allowed only on own listings AND only when status ∈ {draft, pending, active, rejected}; fast-track — edit to `active` listing keeps it live behind a `review_flag`; admin queue surfaces flagged listings alongside pending ones
 - [ ] **LST-10**: Multiple images stored on local filesystem outside webroot (`/var/www/uploads/listings/`) with SHA256 rename, served via PHP proxy — thumbnails public (200/600), full-size (1200) auth-checked
 - [ ] **LST-11**: Quantity field: `quantity` INT DEFAULT 1, `quantity_sold` INT DEFAULT 0; inventory invariant — `quantity_sold` increments ONLY inside ticket-creation transaction; redemption is a no-op for stock; expiry and Force Expire decrement by the same amount (for partially delivered service tickets, only undelivered sessions are restored per FR-LST-012)
 - [ ] **LST-12**: Services use quantity = number of sessions (e.g., "5 tutoring sessions"); each purchase yields ONE ticket whose `total_sessions` equals the sessions bought and whose `session_number` tracks confirmed handovers; per-session confirmation flow defined in TKT-12
-- [ ] **LST-13**: Draft/save flow: seller can save as `draft`, edit later, then submit; draft listings support image upload/management before submission (`draft` flag prevents public visibility)
-- [ ] **LST-14**: Relist after sold: one-click "Relist" copies listing to new `draft` with same details; seller can adjust quantity before submit; on submit, relist goes directly to `active` (skipping `pending`) when source was previously approved (`approved_at` set) — approved-content fast-track
-- [ ] **LST-15**: Seller dashboard: tabs Active / Pending / Sold / Draft with bulk actions (delete, relist)
+- [x] **LST-13**: Draft/save flow: seller can save as `draft`, edit later, then submit; draft listings support image upload/management before submission (`draft` flag prevents public visibility)
+- [x] **LST-14**: Relist after sold: one-click "Relist" copies listing to new `draft` with same details; seller can adjust quantity before submit; on submit, relist goes directly to `active` (skipping `pending`) when source was previously approved (`approved_at` set) — approved-content fast-track
+- [x] **LST-15**: Seller dashboard: tabs Active / Pending / Sold / Draft with bulk actions (delete, relist)
 - [ ] **LST-16**: Image delete/reorder on edit: drag-to-reorder updates `sort_order`; remove individual images
 
 ### Tickets & Purchases
@@ -123,7 +123,7 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 - [x] **SEC-01**: All SQL via prepared statements (PDO); no concatenation (NFR-SEC-002)
 - [x] **SEC-02**: CSRF tokens on all state-changing forms (synchronizer token pattern, `hash_equals()` validation) (NFR-SEC-003)
 - [ ] **SEC-03**: File uploads: 4-layer validation (finfo MIME, getimagesize dimensions ≤4000px/5MB, magic bytes, GD re-encode to WebP); max chunk 2MB, total 5MB; default 8 images/listing; Uppy.js `chunkSize` MUST be 2 MiB (NFR-SEC-004)
-- [ ] **SEC-04**: XSS prevention via `htmlspecialchars` on output (NFR-SEC-005)
+- [x] **SEC-04**: XSS prevention via `htmlspecialchars` on output (NFR-SEC-005)
 - [ ] **SEC-05**: Session cookies: `HttpOnly`, `Secure` (in prod), `SameSite=Strict`, `use_strict_mode=1`, `sid_length=48` (NFR-SEC-006)
 - [x] **SEC-06**: Rate limits: login 5/5min per IP, purchase 10/hr per user, listing_create 20/hr/user, points 150/day/user, redemption 5/hr/ticket; per-user limits (not just IP) (NFR-SEC-007)
 - [ ] **SEC-07**: Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, CSP with CDN allowances (NFR-SEC-008); set by `Support\ResponseHeaders` at front-controller boot
