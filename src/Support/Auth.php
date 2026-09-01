@@ -144,7 +144,15 @@ class Auth
         if ($row === false) {
             self::emitReAuthRequired();
         }
-        $lastSeenTs = strtotime((string) $row['last_seen']);
+        // last_seen is stored in Asia/Colombo wall clock (per AD-17); parse
+        // with that TZ explicitly so the cutoff math matches regardless of
+        // the script's default timezone (PHP CLI defaults to UTC).
+        try {
+            $lastSeenDt = new DateTime((string) $row['last_seen'], new DateTimeZone('Asia/Colombo'));
+            $lastSeenTs = $lastSeenDt->getTimestamp();
+        } catch (\Throwable $e) {
+            $lastSeenTs = false;
+        }
         if ($lastSeenTs === false || $lastSeenTs < time() - $seconds) {
             self::emitReAuthRequired();
         }

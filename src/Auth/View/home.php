@@ -3,24 +3,19 @@
 /**
  * TicketTrade — Auth/View/home
  *
- * Phase 2 Plan 02-02. The landing page hero + CTAs.
+ * Phase 3 Plan 03-04. The public landing page. Composes the five
+ * sections (hero, vision/mission, how-it-works, team, footer) as
+ * View partials. The Action passes:
+ *   - $is_logged_in (bool)  controls the hero CTA
+ *   - $team         (array) the 6-card team roster from config/team.php
  */
 
+$is_logged_in = $is_logged_in ?? false;
+$team = $team ?? [];
+$partialsDir = __DIR__ . '/partials';
 ?>
-<section class="container home-hero" style="padding-top: var(--space-10, 64px); padding-bottom: var(--space-10, 64px);">
-<div class="row align-items-center justify-content-center text-center">
-<div class="col-12 col-md-9 col-lg-7">
-<h1 class="display-5 headline-lg mb-3">TicketTrade</h1>
-<p class="lead body-md text-muted mb-4">
-Verified NSBM students. Trusted peer-to-peer marketplace for event tickets.
-</p>
-<div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
-<a href="/register" class="btn btn-primary btn-lg">Get Started</a>
-<a href="/login" class="btn btn-outline-secondary btn-lg">Sign In</a>
-</div>
-<p class="body-sm text-muted mt-4 mb-0">
-Sign in to browse the board.
-</p>
-</div>
-</div>
-</section>
+<?php require $partialsDir . '/hero.php'; ?>
+<?php require $partialsDir . '/vision_mission.php'; ?>
+<?php require $partialsDir . '/how_it_works.php'; ?>
+<?php require $partialsDir . '/team_section.php'; ?>
+<?php require $partialsDir . '/landing_footer.php'; ?>

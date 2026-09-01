@@ -468,3 +468,47 @@
 @media (prefers-reduced-motion: reduce) {
   .legend-glow::after { animation: none; }
 }
+
+/* ----- Display typography utility classes (Phase 3 D-25) -----
+   Used by .display-lg / .display-md / .display-sm across public_profile
+   (Phase 2) and the landing hero (Phase 3 Plan 03-04). Maps directly to
+   the design tokens defined in tickettrade.tokens.css.
+*/
+.display-lg {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-display-lg);
+  font-weight: var(--font-weight-display-lg, var(--font-weight-bold));
+  line-height: var(--line-height-display-lg);
+  letter-spacing: var(--letter-spacing-display-lg);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+.display-md {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-display-md);
+  font-weight: var(--font-weight-display-md, var(--font-weight-bold));
+  line-height: var(--line-height-display-md);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+.display-sm {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-headline-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-headline-md);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+/* ----- Landing page (Phase 3 Plan 03-04) ----- */
+.landing-hero {
+  padding: var(--space-10) 0;
+  text-align: center;
+}
+.hero h1.display-lg { color: var(--color-on-primary); }
+.how-it-works .badge {
+  border-radius: var(--shape-full);
+}
+.team .avatar {
+  letter-spacing: 0.02em;
+}

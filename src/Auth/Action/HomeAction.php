@@ -3,9 +3,15 @@
 /**
  * TicketTrade — Auth\Action\HomeAction
  *
- * Phase 2 Plan 02-02. The / route. Marketing landing page with a
- * "Get Started" CTA → /register and a "Sign In" CTA → /login.
- * Phase 3 replaces this with the real landing.
+ * Phase 3 Plan 03-04. The / route. Renders the public landing page:
+ * hero, vision/mission, how-it-works, team (6 cards from
+ * config/team.php), and the footer (NSBM branding + simulation
+ * disclaimer + GitHub/Drive links).
+ *
+ * The Action is intentionally thin: no DB call. The team config is
+ * a static require; the landing does NOT show a listings count.
+ *
+ * Logged-in users see `My listings` instead of `Get Started`.
  */
 
 declare(strict_types=1);
@@ -19,14 +25,22 @@ class HomeAction
 {
     public function handle(): void
     {
-        // Already logged in → bounce to /board.
-        if (AuthGuard::currentUser() !== null) {
-            header('Location: /board');
-            exit;
-        }
+        // Public landing surface — light theme by default per UX-06.
+        // The layout's theme default treats 'public' like 'admin'
+        // (light); CSS body class surface-public is a no-op class
+        // (no rules) but harmless if present.
+        $GLOBALS['_tt_surface'] = 'public';
+
+        $currentUser = AuthGuard::currentUser();
+        $team = require __DIR__ . '/../../../config/team.php';
+
         View::render(
             __DIR__ . '/../View/home.php',
-            []
+            [
+                'current_user' => $currentUser,
+                'team' => $team,
+                'is_logged_in' => $currentUser !== null,
+            ]
         );
     }
 }

@@ -14,7 +14,7 @@ $surface = $GLOBALS['_tt_surface'] ?? 'student';
 $vars = $GLOBALS['_tt_view_vars'] ?? [];
 extract($vars, EXTR_SKIP);
 
-$themeDefault = $surface === 'admin' ? 'light' : 'dark';
+$themeDefault = ($surface === 'admin' || $surface === 'public') ? 'light' : 'dark';
 ?><!DOCTYPE html>
 <html lang="en" data-surface="<?= htmlspecialchars($surface, ENT_QUOTES, 'UTF-8') ?>" data-theme="<?= htmlspecialchars($themeDefault, ENT_QUOTES, 'UTF-8') ?>">
 <?php require __DIR__ . '/partials/head.php'; ?>

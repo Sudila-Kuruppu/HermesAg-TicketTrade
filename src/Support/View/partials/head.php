@@ -11,7 +11,7 @@
     var stored = localStorage.getItem('tickettrade-theme');
     var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     var surface = document.documentElement.getAttribute('data-surface') || 'student';
-    if (surface === 'admin') { theme = theme === 'dark' ? 'light' : theme; }
+    if (surface === 'admin' || surface === 'public') { theme = theme === 'dark' ? 'light' : theme; }
     document.documentElement.setAttribute('data-theme', theme);
   } catch (e) {}
 })();
