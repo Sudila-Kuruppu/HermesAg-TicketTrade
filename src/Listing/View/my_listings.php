@@ -1,10 +1,12 @@
 <?php
+
 /**
  * TicketTrade — My Listings placeholder
  *
  * Phase 2 Plan 02-02 ships the auth-required route guard + this
  * "coming soon" card. Phase 3 fills the real data.
  */
+
 $phase_label = $phase_label ?? 'Phase 3';
 ?>
 <section class="container placeholder-shell" style="padding-top: var(--space-8, 48px);">

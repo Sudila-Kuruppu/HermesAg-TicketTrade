@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Admin\Action\ReportsAction
  *

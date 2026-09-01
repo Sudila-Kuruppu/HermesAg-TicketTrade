@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Auth/View/register
  *
@@ -6,6 +7,7 @@
  * input via .invalid-feedback.d-block. The combined anti-enumeration
  * error (D-13) renders as an alert alert-danger at the top of the form.
  */
+
 $csrf = $csrf_token ?? '';
 $values = $values ?? [];
 $error = $GLOBALS['_tt_form_error'] ?? null;
@@ -20,11 +22,11 @@ $combined = ($error !== null && (empty($fields) || $fields === null)) ? ($error[
 <h1 class="headline-md mb-1">Create your account</h1>
 <p class="body-sm text-muted mb-4">Verified NSBM students only. You'll get +50 points after email verification.</p>
 
-<?php if ($combined !== null): ?>
+<?php if ($combined !== null) : ?>
 <div class="alert alert-danger" role="alert"><?= htmlspecialchars($combined, ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 
-<?php if (!empty($fields) && is_array($fields) && $combined === null): ?>
+<?php if (!empty($fields) && is_array($fields) && $combined === null) : ?>
 <div class="alert alert-warning" role="alert">Please fix the highlighted fields.</div>
 <?php endif; ?>
 
@@ -38,7 +40,7 @@ class="form-control <?= isset($fields['email']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars((string) ($values['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
 autocomplete="email" inputmode="email">
 <div class="form-text">Use your <code>@students.nsbm.ac.lk</code> address.</div>
-<?php if (isset($fields['email'])): ?>
+<?php if (isset($fields['email'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['email'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -50,7 +52,7 @@ class="form-control <?= isset($fields['student_id']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars((string) ($values['student_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
 placeholder="NSBM/2024/001" autocomplete="off">
 <div class="form-text">Format: <code>NSBM/YYYY/NNN</code></div>
-<?php if (isset($fields['student_id'])): ?>
+<?php if (isset($fields['student_id'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['student_id'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -61,7 +63,7 @@ placeholder="NSBM/2024/001" autocomplete="off">
 class="form-control <?= isset($fields['full_name']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars((string) ($values['full_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
 autocomplete="name">
-<?php if (isset($fields['full_name'])): ?>
+<?php if (isset($fields['full_name'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['full_name'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -73,7 +75,7 @@ class="form-control <?= isset($fields['nickname']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars((string) ($values['nickname'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
 pattern="[A-Za-z0-9_]{3,30}" autocomplete="username">
 <div class="form-text">3–30 letters, numbers, or underscores. Locked after registration.</div>
-<?php if (isset($fields['nickname'])): ?>
+<?php if (isset($fields['nickname'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['nickname'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -84,7 +86,7 @@ pattern="[A-Za-z0-9_]{3,30}" autocomplete="username">
 class="form-control <?= isset($fields['password']) ? 'is-invalid' : '' ?>"
 autocomplete="new-password">
 <div class="form-text">At least 8 characters.</div>
-<?php if (isset($fields['password'])): ?>
+<?php if (isset($fields['password'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['password'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>

@@ -1,4 +1,5 @@
 <?php
+
 $current = $_SERVER['REQUEST_URI'] ?? '/';
 ?>
 <nav class="bottom-nav d-md-none" data-component="bottom-nav" aria-label="Primary">

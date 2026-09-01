@@ -1,9 +1,11 @@
 <?php
+
 /**
  * TicketTrade — Auth/View/home
  *
  * Phase 2 Plan 02-02. The landing page hero + CTAs.
  */
+
 ?>
 <section class="container home-hero" style="padding-top: var(--space-10, 64px); padding-bottom: var(--space-10, 64px);">
 <div class="row align-items-center justify-content-center text-center">

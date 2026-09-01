@@ -1,10 +1,12 @@
 <?php
+
 /**
  * TicketTrade — Auth/View/forgot_password
  *
  * Centered card with a single email field. The hint copy matches
  * the D-07 anti-enumeration promise.
  */
+
 $csrf = $csrf_token ?? '';
 $values = $values ?? [];
 $error = $GLOBALS['_tt_form_error'] ?? null;
@@ -19,7 +21,7 @@ $errMsg = ($error !== null && empty($fields)) ? ($error['message'] ?? null) : nu
 <h1 class="headline-md mb-2">Forgot password</h1>
 <p class="body-sm text-muted mb-4">If that email is registered, a reset link is in your inbox.</p>
 
-<?php if ($errMsg !== null && $errMsg !== ''): ?>
+<?php if ($errMsg !== null && $errMsg !== '') : ?>
 <div class="alert alert-danger" role="alert"><?= htmlspecialchars($errMsg, ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 
@@ -32,7 +34,7 @@ $errMsg = ($error !== null && empty($fields)) ? ($error['message'] ?? null) : nu
 class="form-control <?= isset($fields['email']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars((string) ($values['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
 autocomplete="email" inputmode="email">
-<?php if (isset($fields['email'])): ?>
+<?php if (isset($fields['email'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['email'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>

@@ -1,10 +1,12 @@
 <?php
+
 /**
  * TicketTrade — User/View/settings
  *
  * Phase 2 Plan 02-02. Theme radios + a destructive-styled logout
  * button inside a Bootstrap confirm modal.
  */
+
 $csrf = $csrf_token ?? '';
 $profile = $profile ?? [];
 ?>

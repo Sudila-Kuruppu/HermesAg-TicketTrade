@@ -56,8 +56,10 @@ class RegisterAction
 
         $fieldErrors = [];
 
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)
-            || !str_ends_with(strtolower($email), '@students.nsbm.ac.lk')) {
+        if (
+            $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)
+            || !str_ends_with(strtolower($email), '@students.nsbm.ac.lk')
+        ) {
             $fieldErrors['email'] = 'Use your `@students.nsbm.ac.lk` email.';
         }
         if ($studentId === '') {

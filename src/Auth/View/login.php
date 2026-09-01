@@ -1,10 +1,12 @@
 <?php
+
 /**
  * TicketTrade — Auth/View/login
  *
  * Centered card, max-width 400px. The inline alert-danger renders
  * ABOVE the form fields (per D-12: not a flash toast).
  */
+
 $csrf = $csrf_token ?? '';
 $next = $next ?? '';
 $values = $values ?? [];
@@ -19,7 +21,7 @@ $errCode = $error['code'] ?? null;
 <div class="card-body p-4 p-md-5">
 <h1 class="headline-md text-center mb-4">Sign in</h1>
 
-<?php if ($errMsg !== null && $errMsg !== ''): ?>
+<?php if ($errMsg !== null && $errMsg !== '') : ?>
 <div class="alert alert-danger" role="alert"><?= htmlspecialchars($errMsg, ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 

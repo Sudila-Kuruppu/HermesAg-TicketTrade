@@ -1,10 +1,12 @@
 <?php
+
 /**
  * TicketTrade — User/View/profile_edit
  *
  * Phase 2 Plan 02-02. The form has NO nickname field (D-15 — locked
  * at registration). Avatar picker uses the existing partial.
  */
+
 $csrf = $csrf_token ?? '';
 $values = $values ?? [];
 $profile = $profile ?? [];
@@ -25,7 +27,7 @@ $fullName = (string) ($values['full_name'] ?? ($profile['full_name'] ?? ''));
 <h1 class="headline-md mb-2">Edit profile</h1>
 <p class="body-sm text-muted mb-4">Update your public profile. Nickname is locked.</p>
 
-<?php if ($error !== null && !empty($fields) && is_array($fields)): ?>
+<?php if ($error !== null && !empty($fields) && is_array($fields)) : ?>
 <div class="alert alert-warning" role="alert">Please fix the highlighted fields.</div>
 <?php endif; ?>
 
@@ -38,7 +40,7 @@ $fullName = (string) ($values['full_name'] ?? ($profile['full_name'] ?? ''));
 class="form-control <?= isset($fields['full_name']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
 autocomplete="name">
-<?php if (isset($fields['full_name'])): ?>
+<?php if (isset($fields['full_name'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['full_name'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -51,7 +53,7 @@ data-counter-target="bio-counter"
 oninput="document.getElementById('bio-counter').textContent = this.value.length + '/500';"
 ><?= htmlspecialchars($bio, ENT_QUOTES, 'UTF-8') ?></textarea>
 <div class="form-text"><span id="bio-counter"><?= strlen($bio) ?>/500</span></div>
-<?php if (isset($fields['bio'])): ?>
+<?php if (isset($fields['bio'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['bio'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>
@@ -63,7 +65,7 @@ class="form-control <?= isset($fields['whatsapp']) ? 'is-invalid' : '' ?>"
 value="<?= htmlspecialchars($whatsapp, ENT_QUOTES, 'UTF-8') ?>"
 placeholder="+94771234567 or 0771234567" autocomplete="tel">
 <div class="form-text">Sri Lankan mobile. Format: <code>+94XXXXXXXXX</code> or <code>07XXXXXXXX</code>. Private — never shown on the public profile.</div>
-<?php if (isset($fields['whatsapp'])): ?>
+<?php if (isset($fields['whatsapp'])) : ?>
 <div class="invalid-feedback d-block"><?= htmlspecialchars($fields['whatsapp'], ENT_QUOTES, 'UTF-8') ?></div>
 <?php endif; ?>
 </div>

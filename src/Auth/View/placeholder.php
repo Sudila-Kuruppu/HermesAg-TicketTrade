@@ -1,4 +1,5 @@
 <?php
+
 $note = $note ?? 'Coming soon.';
 ?><section class="placeholder-card container" style="padding-top: var(--space-8, 48px);">
 <h1 class="headline-md">Phase 2 Substrate</h1>
