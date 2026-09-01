@@ -34,6 +34,7 @@ class PublicProfileAction
     public function handle(): void
     {
         $nickname = (string) ($GLOBALS['_tt_path_params']['nickname'] ?? '');
+        error_log("[ACTION] nickname='$nickname' path_params=" . var_export($GLOBALS['_tt_path_params'] ?? null, true));
         if (!preg_match('/^[A-Za-z0-9_]{3,30}$/', $nickname)) {
             Error::not_found();
             return;
