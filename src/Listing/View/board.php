@@ -117,12 +117,19 @@ if ($firstListing !== null) {
              style="transform: rotate(<?= (int) $rotation ?>deg);"
              aria-hidden="true">
           <div class="cork-cell__pin <?= htmlspecialchars($pinClass, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></div>
+          <?php if ($isGuest) : ?>
+          <a href="<?= htmlspecialchars('/login?next=/board', ENT_QUOTES, 'UTF-8') ?>"
+             class="listing-card-cork-link"
+             data-listing-id="<?= (int) $id ?>"
+             aria-label="Open listing: <?= htmlspecialchars($titleAttr, ENT_QUOTES, 'UTF-8') ?>">
+          <?php else : ?>
           <a href="#listing-<?= (int) $id ?>"
              class="listing-card-cork-link"
              data-bs-toggle="modal"
              data-bs-target="#listingModal"
              data-listing-id="<?= (int) $id ?>"
              aria-label="Open listing: <?= htmlspecialchars($titleAttr, ENT_QUOTES, 'UTF-8') ?>">
+          <?php endif; ?>
             <?= \App\Support\View::partial('listing_card_cork', [
                 'listing' => $row,
                 'is_guest' => $isGuest,
@@ -167,11 +174,12 @@ if ($firstListing !== null) {
       'page' => $page, 'pages' => $pages, 'q' => $q, 'cat' => $cat, 'slot' => 'bottom',
   ]) ?>
 
-  <?php if (!empty($rows)) : ?>
-    <?= \App\Support\View::partial('listing_modal', [
-        'first_listing' => $firstListingWithImages ?? $firstListing,
-        'prev_id' => $prevId,
-        'next_id' => $nextId,
-    ]) ?>
-  <?php endif; ?>
+  <?php if (!empty($rows)) :
+      $GLOBALS['_tt_view_vars'] = [
+          'first_listing' => $firstListingWithImages ?? $firstListing,
+          'prev_id' => $prevId,
+          'next_id' => $nextId,
+      ];
+      require __DIR__ . '/listing_modal.php';
+  endif; ?>
 </section>
