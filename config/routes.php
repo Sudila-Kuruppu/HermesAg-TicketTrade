@@ -9,6 +9,11 @@
  *
  * Plan 02-01 ships the route map with stub Actions. Plan 02-02 and
  * 02-03 fill the Action bodies.
+ *
+ * Plan 03-01 ADDS:
+ *   - GET /img/{listing_id}/{size} for Support\ImageProxy. auth=false
+ *     (proxy decides per-size), csrf=false (read-only), rate_limit=null
+ *     (proxy enforces its own per-IP / per-user limits).
  */
 
 declare(strict_types=1);
@@ -35,4 +40,5 @@ return [
     'GET /my-listings'        => ['App\Listing\Action\MyListingsAction', 'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /sales'              => ['App\Ticket\Action\SalesAction',       'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /purchases'          => ['App\Ticket\Action\PurchasesAction',   'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
+    'GET /img/{listing_id}/{size}' => ['App\Support\Action\ImageProxyAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
 ];

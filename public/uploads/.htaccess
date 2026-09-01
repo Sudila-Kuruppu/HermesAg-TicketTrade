@@ -1,0 +1,4 @@
+# TicketTrade — neutralize accidental direct reads of uploaded images.
+# All listing image reads MUST go through Support\ImageProxy at
+# /img/{listing_id}/{size} per AD-14 + CONTEXT D-14.
+Deny from all

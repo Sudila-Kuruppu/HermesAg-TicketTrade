@@ -1,0 +1,6 @@
+# TicketTrade — /img/* is the canonical image-proxy URL space.
+# Apache routes these through router.php (dev server does the same).
+# The proxy emits the WebP bytes after auth + rate-limit checks.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ router.php?img_route=$1 [L,QSA]

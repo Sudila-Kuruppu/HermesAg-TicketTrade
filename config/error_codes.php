@@ -20,4 +20,11 @@ return [
     'E_TOKEN_INVALID'       => 'Token invalid or expired.',
     'E_PASSWORD_WEAK'       => 'Password must be at least 8 characters.',
     'E_PASSWORD_MISMATCH'   => 'Passwords do not match.',
+
+    // Phase 3 additions (Plan 03-01).
+    'E_IMAGE_INVALID'       => 'Image is invalid or failed validation.',
+    'E_IMAGE_TOO_LARGE'     => 'Image exceeds the 5MB size limit.',
+    'E_LISTING_NOT_FOUND'   => 'Listing not found.',
+    'E_LISTING_FORBIDDEN'   => 'You do not have permission to modify this listing.',
+    'E_CATEGORY_NOT_FOUND'  => 'Category not found.',
 ];

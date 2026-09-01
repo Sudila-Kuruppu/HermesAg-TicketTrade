@@ -5,7 +5,12 @@
  * Runs `php migrate.php` against the test DB and asserts:
  *  - First run creates all 7 expected tables.
  *  - Second run is a no-op.
- *  - migrations/.applied has 7 lines.
+ *  - migrations/.applied has the expected line count (dynamically
+ *    computed from glob('migrations/*.sql') minus dotfiles, since
+ *    Phase 3 added three more migrations).
+ *
+ * The table-list assertion stays at the Phase 2 contract (7 tables);
+ * new Phase 3 tables are not asserted here.
  */
 
 declare(strict_types=1);
@@ -28,9 +33,11 @@ class MigrateRunnerTest extends TestCase
 
         // Run the migrations
         $output = $this->runMigrations();
-        $this->assertStringContainsString('Applied 7 files in', $output);
+        $expectedCount = $this->countMigrationFiles();
+        $this->assertStringContainsString('Applied ' . $expectedCount . ' files in', $output);
 
-        // Verify expected tables exist
+        // Verify expected tables exist (Phase 2 contract; new tables are
+        // asserted in their respective test classes).
         $rows = $pdo->query("SHOW TABLES")->fetchAll(\PDO::FETCH_COLUMN);
         $expected = ['cache_rate', 'email_verifications', 'password_resets', 'points_log', 'sessions', 'student_id_allowlist', 'users'];
         foreach ($expected as $t) {
@@ -40,18 +47,33 @@ class MigrateRunnerTest extends TestCase
 
     public function test_second_run_is_noop(): void
     {
-        // Re-run; .applied already has all 7 from the previous test
+        // Re-run; .applied already has all files from the previous test
         $output = $this->runMigrations();
         $this->assertStringContainsString('Already up-to-date (0 files to apply)', $output);
     }
 
-    public function test_applied_file_has_seven_lines(): void
+    public function test_applied_file_has_expected_lines(): void
     {
         $applied = file_get_contents(APP_ROOT . '/migrations/.applied');
         $lines = array_filter(explode("\n", $applied), function ($l) {
             return trim($l) !== '';
         });
-        $this->assertCount(7, $lines);
+        $expected = $this->countMigrationFiles();
+        $this->assertCount($expected, $lines);
+    }
+
+    /**
+     * Count migration files matching the runner's filename filter:
+     * *.sql starting with '0' and not starting with '.'.
+     */
+    private function countMigrationFiles(): int
+    {
+        $files = glob(APP_ROOT . '/migrations/*.sql') ?: [];
+        $files = array_filter($files, function ($f) {
+            $base = basename($f);
+            return str_starts_with($base, '0') && substr($base, 0, 1) !== '.';
+        });
+        return count($files);
     }
 
     private function runMigrations(): string

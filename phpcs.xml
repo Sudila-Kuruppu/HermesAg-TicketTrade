@@ -5,13 +5,14 @@
     <!-- Inherit PSR-12 (which includes PSR-1 / PSR-2). -->
     <rule ref="PSR12"/>
     <!-- Allow snake_case names in: error responses, model classes,
-         the auth_service / user_service / points_service class
-         (per architecture spec). -->
+         the auth_service / user_service / points_service / listing_service
+         class (per architecture spec). -->
     <exclude-pattern>src/Support/Error.php</exclude-pattern>
     <exclude-pattern>src/*/Model/*</exclude-pattern>
     <exclude-pattern>src/Auth/Service/auth_service.php</exclude-pattern>
     <exclude-pattern>src/User/Service/user_service.php</exclude-pattern>
     <exclude-pattern>src/Points/Service/points_service.php</exclude-pattern>
+    <exclude-pattern>src/Listing/Service/listing_service.php</exclude-pattern>
     <!-- Allow long lines in templates (line breaks would break the render). -->
     <rule ref="Generic.Files.LineLength">
         <severity>0</severity>
