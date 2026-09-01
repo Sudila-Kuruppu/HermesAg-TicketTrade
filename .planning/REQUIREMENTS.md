@@ -9,16 +9,16 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 
 ### Authentication & Profile
 
-- [ ] **AUTH-01**: Student can register with `@students.nsbm.ac.lk` email + student ID; simulated email verification; student ID validated against seeded allowlist (~50 demo accounts) to prevent impersonation
-- [ ] **AUTH-02**: Student can log in with email + password; session persists across browser refresh
-- [ ] **AUTH-03**: Student can log out, destroying the session and redirecting to landing
-- [ ] **AUTH-04**: Password rules enforced server-side (≥8 chars) and stored as bcrypt (cost ≥12); never plaintext, never logged
-- [ ] **AUTH-05**: Route guards redirect unauthenticated users from protected pages to login; non-admin access to `/admin/*` redirects with error
-- [ ] **AUTH-06**: Login attempts rate-limited (5/5min/IP per NFR-SEC-007); wrong credentials show a single inline error (anti-enumeration per UX-DR-36)
-- [ ] **PROF-01**: Student can edit profile: full name, bio, avatar (grid of 12 predefined illustrations), WhatsApp number (validated: Sri Lankan mobile `^(\+94|0)7[0-9]{8}$`)
+- [x] **AUTH-01**: Student can register with `@students.nsbm.ac.lk` email + student ID; simulated email verification; student ID validated against seeded allowlist (~50 demo accounts) to prevent impersonation
+- [x] **AUTH-02**: Student can log in with email + password; session persists across browser refresh
+- [x] **AUTH-03**: Student can log out, destroying the session and redirecting to landing
+- [x] **AUTH-04**: Password rules enforced server-side (≥8 chars) and stored as bcrypt (cost ≥12); never plaintext, never logged
+- [x] **AUTH-05**: Route guards redirect unauthenticated users from protected pages to login; non-admin access to `/admin/*` redirects with error
+- [x] **AUTH-06**: Login attempts rate-limited (5/5min/IP per NFR-SEC-007); wrong credentials show a single inline error (anti-enumeration per UX-DR-36)
+- [x] **PROF-01**: Student can edit profile: full name, bio, avatar (grid of 12 predefined illustrations), WhatsApp number (validated: Sri Lankan mobile `^(\+94|0)7[0-9]{8}$`)
 - [ ] **PROF-02**: Profile shows rank badge, star row, total points, join date, transaction counts (sales + purchases), average rating + review count
 - [ ] **PROF-03**: Profile tabs: My Listings · My Tickets · Purchase History · Sales History · Reviews
-- [ ] **PROF-04**: Verified Student checkmark displayed on profile and listing cards (one-time +50 pts bonus on verification)
+- [x] **PROF-04**: Verified Student checkmark displayed on profile and listing cards (one-time +50 pts bonus on verification)
 
 ### Listings
 
@@ -120,14 +120,14 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 - [x] **UX-08**: Keyboard navigation floor (NFR-USE-002): all modals trap focus, ESC closes, focus returns to trigger, focus-visible 2px outlines; skip link first focusable element on every page jumping to `#main`
 - [x] **UX-09**: Bottom nav: 64px tall, fixed, 5 items (Board, My Listings, My Tickets, Sales, Profile); hidden on ≥768px; `aria-current='page'` on active; no badge counts (anti-pattern)
 - [x] **UX-10**: Avatar picker: grid of 12 predefined illustrations (4×3 desktop, 3×4 mobile); circular thumbnails; 2px primary ring on selection; no upload, no custom images
-- [ ] **SEC-01**: All SQL via prepared statements (PDO); no concatenation (NFR-SEC-002)
-- [ ] **SEC-02**: CSRF tokens on all state-changing forms (synchronizer token pattern, `hash_equals()` validation) (NFR-SEC-003)
+- [x] **SEC-01**: All SQL via prepared statements (PDO); no concatenation (NFR-SEC-002)
+- [x] **SEC-02**: CSRF tokens on all state-changing forms (synchronizer token pattern, `hash_equals()` validation) (NFR-SEC-003)
 - [ ] **SEC-03**: File uploads: 4-layer validation (finfo MIME, getimagesize dimensions ≤4000px/5MB, magic bytes, GD re-encode to WebP); max chunk 2MB, total 5MB; default 8 images/listing; Uppy.js `chunkSize` MUST be 2 MiB (NFR-SEC-004)
 - [ ] **SEC-04**: XSS prevention via `htmlspecialchars` on output (NFR-SEC-005)
 - [ ] **SEC-05**: Session cookies: `HttpOnly`, `Secure` (in prod), `SameSite=Strict`, `use_strict_mode=1`, `sid_length=48` (NFR-SEC-006)
-- [ ] **SEC-06**: Rate limits: login 5/5min per IP, purchase 10/hr per user, listing_create 20/hr/user, points 150/day/user, redemption 5/hr/ticket; per-user limits (not just IP) (NFR-SEC-007)
+- [x] **SEC-06**: Rate limits: login 5/5min per IP, purchase 10/hr per user, listing_create 20/hr/user, points 150/day/user, redemption 5/hr/ticket; per-user limits (not just IP) (NFR-SEC-007)
 - [ ] **SEC-07**: Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, CSP with CDN allowances (NFR-SEC-008); set by `Support\ResponseHeaders` at front-controller boot
-- [ ] **SEC-08**: WhatsApp number validation server-side regex `^(\+94|0)7[0-9]{8}$` (Sri Lankan mobile) (NFR-SEC-009)
+- [x] **SEC-08**: WhatsApp number validation server-side regex `^(\+94|0)7[0-9]{8}$` (Sri Lankan mobile) (NFR-SEC-009)
 - [ ] **PER-01**: Page load < 2s on localhost uncached (NFR-PER-001)
 - [ ] **PER-02**: Board view loads ≤ 50 listings per page (pagination) (NFR-PER-002)
 - [ ] **PER-03**: Image thumbnails generated on upload (3 sizes: 200px, 600px, 1200px, all WebP 80% quality) (NFR-PER-003)

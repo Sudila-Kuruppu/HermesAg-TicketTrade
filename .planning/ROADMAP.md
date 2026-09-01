@@ -14,7 +14,7 @@ Build TicketTrade (NSBM campus-only peer-to-peer marketplace) in 9 sequential ph
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: UX Foundation & Design System** — Tokens, theme, a11y floor, toast container, bottom nav, mockup-driven surfaces (completed 2026-08-30)
-- [ ] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives
+- [x] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives (completed 2026-09-01)
 - [ ] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot
 - [ ] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
 - [ ] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count
