@@ -1,0 +1,58 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "UX Foundation & Design System",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Student Authentication & Profiles",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Marketplace Listings & Discovery",
+      "status": "complete"
+    },
+    {
+      "number": "4",
+      "name": "Purchases, Tickets & Lifecycle",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Reviews & Ratings",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Points, Ranks & Leaderboards",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Reports, Disputes & Moderation Workflow",
+      "status": "pending"
+    },
+    {
+      "number": "8",
+      "name": "Admin Console, Audit & Analytics",
+      "status": "pending"
+    },
+    {
+      "number": "9",
+      "name": "Operational Substrate",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:verify-work 03",
+    "label": "Verify Phase 3",
+    "reason": "Phase 3 of 9 \u00b7 22% \u00b7 all 4 plans shipped, ready for verifier"
+  },
+  "updated_at": "2026-09-01T23:55:00.000Z"
+}

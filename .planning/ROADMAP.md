@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: UX Foundation & Design System** — Tokens, theme, a11y floor, toast container, bottom nav, mockup-driven surfaces (completed 2026-08-30)
 - [x] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives (completed 2026-09-01)
-- [ ] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot
+- [x] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot (completed 2026-09-01)
 - [ ] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
 - [ ] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count
 - [ ] **Phase 6: Points, Ranks & Leaderboards** — Points engine, 6-tier ladder, daily leaderboards, anti-farming rules
