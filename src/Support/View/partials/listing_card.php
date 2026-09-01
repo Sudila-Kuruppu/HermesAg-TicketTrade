@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Support\View\partials\listing_card
  *

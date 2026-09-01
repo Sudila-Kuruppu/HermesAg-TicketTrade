@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Support\View\partials\listing_card_cork
  *
@@ -52,9 +53,9 @@ $priceStr = number_format($priceCents / 100, 2);
       <?php if ($sellerNickname !== '') : ?>
         <p class="body-sm text-on-surface-variant mb-0">
           @<?= htmlspecialchars($sellerNickname, ENT_QUOTES, 'UTF-8') ?>
-          <?php if ($sellerVerified) : ?>
+            <?php if ($sellerVerified) : ?>
             <span aria-label="Verified student" title="Verified student">&#10003;</span>
-          <?php endif; ?>
+            <?php endif; ?>
         </p>
       <?php endif; ?>
     </div>

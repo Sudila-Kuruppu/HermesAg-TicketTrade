@@ -90,6 +90,10 @@ class ImageUpload
             }
 
             $result = self::processOne($file, $cfg, $root);
+            if (!empty($result['silent'])) {
+                // UPLOAD_ERR_NO_FILE - skip without recording.
+                continue;
+            }
             if ($result['ok']) {
                 $uploaded[] = [
                     'index' => $idx,
@@ -135,7 +139,9 @@ class ImageUpload
         // PHP upload error codes (Per D-11; layer 0 = transport-level).
         if ($error === UPLOAD_ERR_NO_FILE) {
             // No file in this slot; silent skip per task 2 spec.
-            return ['ok' => false, 'code' => 'E_IMAGE_INVALID', 'message' => 'No file uploaded.'];
+            // Returns ok=true with empty result so the caller does not add
+            // a spurious error entry.
+            return ['ok' => true, 'sha256' => '', 'sizes' => [], 'silent' => true];
         }
         if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
             return ['ok' => false, 'code' => 'E_IMAGE_TOO_LARGE', 'message' => 'Image exceeds the size limit.'];
@@ -280,22 +286,36 @@ class ImageUpload
      */
     private static function normalizeFiles(array $files): array
     {
-        if (!isset($files['name']) || !is_array($files['name'])) {
-            // Single descriptor.
+        // Detect the single-descriptor shape: top-level keys are name/tmp_name/etc.
+        if (isset($files['name']) && !is_array($files['name'])) {
             return [$files];
         }
-        $out = [];
-        $count = count($files['name']);
-        for ($i = 0; $i < $count; $i++) {
-            $out[] = [
-                'name' => $files['name'][$i] ?? '',
-                'tmp_name' => $files['tmp_name'][$i] ?? '',
-                'size' => $files['size'][$i] ?? 0,
-                'error' => $files['error'][$i] ?? UPLOAD_ERR_NO_FILE,
-                'type' => $files['type'][$i] ?? '',
-            ];
+        // Detect the single-descriptor-wrapped shape: a list of one descriptor.
+        if (
+            count($files) === 1
+            && isset($files[0])
+            && is_array($files[0])
+            && array_key_exists('name', $files[0])
+        ) {
+            return [$files[0]];
         }
-        return $out;
+        // Grouped shape: name[], tmp_name[], size[], error[], type[].
+        if (isset($files['name']) && is_array($files['name'])) {
+            $out = [];
+            $count = count($files['name']);
+            for ($i = 0; $i < $count; $i++) {
+                $out[] = [
+                    'name' => $files['name'][$i] ?? '',
+                    'tmp_name' => $files['tmp_name'][$i] ?? '',
+                    'size' => $files['size'][$i] ?? 0,
+                    'error' => $files['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+                    'type' => $files['type'][$i] ?? '',
+                ];
+            }
+            return $out;
+        }
+        // Fallback: treat as already-normalized list.
+        return $files;
     }
 
     /**
