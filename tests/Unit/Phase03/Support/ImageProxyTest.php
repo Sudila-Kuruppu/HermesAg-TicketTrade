@@ -57,9 +57,12 @@ class ImageProxyTest extends TestCase
         @mkdir($tmpRoot, 0775, true);
         putenv('UPLOAD_STORAGE_ROOT=' . $tmpRoot);
         // Clear any existing rate-limit state for this IP/user.
+        // FK checks must be off: cron_log.actor_user_id references users.
         $pdo = \App\Support\Db::pdo();
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
         $pdo->exec('TRUNCATE TABLE cache_rate');
         $pdo->exec('TRUNCATE TABLE users');
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         // Clear session for the test.
         $_SESSION = [];
         $_COOKIE = [];
