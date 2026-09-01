@@ -15,6 +15,60 @@ Every trade ends with proof: each purchase produces a confirmable digital ticket
 - **Success metric**: ≥50 registrations, ≥30 active listings, ≥60% ticket redemption rate, <10% dispute rate, ≥5 students reach Striker tier, zero critical security findings, board < 2s
 - **Strategy notes**: PRD at `_bmad-output/planning-artifacts/prds/prd-nsbm-marketplace-2026-08-22/prd.md` is authoritative; brief at `_bmad-output/planning-artifacts/briefs/brief-nsbm-marketplace-2026-08-23/brief.md`
 
+## Team & Assignment Context
+
+This is a **WAD coursework project** (Module: Web and Mobile Application Development, Batch 26.1, NSBM Green University, Faculty of Computing). The full assignment brief is `WAD_Batch26.md`; the rubric, deliverables, and team roster live here so every agent and grader sees the same context.
+
+### Assignment topic and rubric (WAD_Batch26.md Topic 4)
+
+- **Topic**: "NSBM Marketplace - Student Business and Service Platform" (one of five topics in sec 2; team selected Topic 4).
+- **Tech mandate (sec 3)**: PHP (mandatory), MySQL (mandatory), HTML/CSS/JavaScript (Bootstrap or Material UI may be used). No other backend language may be substituted. Frontend uses Bootstrap 5 per team decision.
+- **Functional mandate (sec 3)**: Separate admin + student interfaces; secure login; complete CRUD throughout; responsive UI; PHP+MySQL integration; form validation; navigation menus and consistent layouts; search/filtering where applicable.
+- **Evaluation rubric (sec 5)**:
+  - UI Design and Frontend - 20%
+  - Backend and Database Integration - 20%
+  - Admin Panel Functionality - 15%
+  - Student/User Panel Functionality - 15%
+  - Project Report, Screenshots & Drive Links - 15%
+  - Video Demonstration & Teamwork - 15%
+- **Submission deadline (sec 7)**: tentative 2026-09-02 (matches the MVP date in Constraints).
+- **Brief explicitly encourages** "additional innovative features beyond the minimum requirements." The gamification, digital ticket, dispute, and review systems in this PRD are those innovations and they materially affect the UI/Backend/Admin rubric scores.
+
+### Deliverables checklist (WAD_Batch26.md sec 4)
+
+1. **Project Report** (PDF or Word) - project title, team leader name + contact, group member names + roles, introduction, project objectives, system description, key-feature screenshots (admin + student interfaces), Google Drive link to source code (public access), Google Drive link to demo video.
+2. **Project Source Code** - complete project folder uploaded to Google Drive; public access enabled; Drive link in the report.
+3. **Video Demonstration** - one screen-recorded video covering: login functionality, admin panel, student/user panel, CRUD operations, database functionality, main features, and a brief per-member contribution description.
+4. **Submission** - only the team leader (or one designated member) submits the final report via the LMS.
+
+### Team roster (Batch 26.1, 6 students)
+
+Source of truth: `config/team.php` (consumed by the landing-page Team section per Phase 3 D-26). Roles mirror the 6-person split in Constraints. The team leader is the single submitter.
+
+| # | Function | Role | Initials | Notes |
+|---|----------|------|----------|-------|
+| 1 | Backend | Backend Lead | -- | Owner of `Auth/Service`, `Support\Auth`, AD-18 bcrypt sniff |
+| 2 | Backend | Backend Member | -- | Owner of `Listing/Service`, `Ticket/Service`, migrations |
+| 3 | Frontend | Frontend Lead | -- | Owner of design tokens, layout template, listing modal |
+| 4 | Frontend | Frontend Member | -- | Owner of board view, My Tickets, profile pages |
+| 5 | Database | Database Engineer | -- | Owner of schema design, FULLTEXT indexes, leaderboard summaries |
+| 6 | QA/Docs | QA + Docs Lead | -- | Owner of PHPUnit suites, phpcs, project report + video edit |
+
+**Team leader** (the designated submitter per WAD_Batch26.md sec 4) is filled in `config/team.php` as the first row with `role='Team Leader'`. Update that file when the actual student names and leader are assigned - the landing-page Team section will re-render automatically.
+
+### How the rubric maps to phases
+
+| Rubric line | Weighted by | Phase(s) | Evidence |
+|-------------|-------------|----------|----------|
+| UI Design and Frontend (20%) | Visual polish, responsive, contrast, animations | Phase 1 (tokens + mockups), Phase 3 (board + modal), Phase 6 (rank badges) | DESIGN.md contrast ledger, screenshot set in report |
+| Backend + Database (20%) | Architecture, AD compliance, SQL quality, idempotency | All phases (AD-1..AD-20), Phase 2 (substrate), Phase 4 (atomic UPDATE) | phpcs clean, `php migrate.php` idempotent, EXPLAIN plans in report |
+| Admin Panel (15%) | Listings queue, user mgmt, audit log, re-auth | Phase 3 (cron + queue), Phase 7 (reports), Phase 8 (full admin console + audit) | Demo video admin section, audit log screenshots |
+| Student/User Panel (15%) | Register, list, buy, redeem, rate, earn | Phase 2 (auth + profile), Phase 3 (list), Phase 4 (buy+redeem), Phase 5 (rate), Phase 6 (earn) | Demo video student section |
+| Report + Screenshots + Drive (15%) | Documentation quality | Continuous - every phase ends with SUMMARY.md and screenshots | `.planning/phases/*/SUMMARY.md`, Drive folder |
+| Video + Teamwork (15%) | Demo clarity, equal contribution shown | Final week - `bin/record-demo.sh` (when present) | Video Drive link |
+
+Every phase plan MUST identify which rubric lines it produces evidence for; the executor records the evidence path in the phase SUMMARY.md.
+
 ## Requirements
 
 ### Validated
