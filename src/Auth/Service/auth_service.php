@@ -568,6 +568,12 @@ class auth_service
             }
             $stmt = $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE user_id = ?');
             $stmt->execute([$newHash, $userId]);
+            // Invalidate all existing sessions for this user. Per D-07
+            // "the reset endpoint ... logs the user in" but other
+            // devices/sessions for the same user should NOT remain
+            // authenticated after a password change.
+            $stmt = $pdo->prepare('DELETE FROM sessions WHERE user_id = ?');
+            $stmt->execute([$userId]);
             $pdo->commit();
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {

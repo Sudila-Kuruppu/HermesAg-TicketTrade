@@ -40,7 +40,10 @@ class points_service
         $pdo = Db::pdo();
         $uuid = Uuid::uuid7()->toString();
         $newPoints = 50;
-        $newTier = 'D';
+        // Compute the tier from points so the stub honors the rank ladder
+        // (E 0-49, D 50-149, ...). Per AD-10, auth_service::tierFromPoints
+        // is the single source of truth for the tier computation.
+        $newTier = auth_service::tierFromPoints($newPoints);
         try {
             $pdo->beginTransaction();
             points_log_model::insert(

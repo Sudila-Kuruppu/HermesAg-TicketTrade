@@ -54,20 +54,12 @@ class LoginAction
         $password = (string) ($_POST['password'] ?? '');
         $next = (string) ($_POST['next'] ?? ($_GET['next'] ?? ''));
 
-        // Rate-limit check FIRST (Pitfall ordering: rate-limit fires
-        // before password verify so the constant-time guarantee is
-        // preserved; D-12 NFR-SEC-007).
+        // Rate-limit is enforced by the Router before this handler runs
+        // (Support\Router::dispatch checks $opts['rate_limit']).
+        // LoginAction does NOT call RateLimit::hit() itself — doing so
+        // would double-count and the 3rd attempt would 429 instead of
+        // the 6th (ROADMAP Phase 2 success criterion 4).
         $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        $rl = RateLimit::hit('login', $ip);
-        if (!$rl['allowed']) {
-            $GLOBALS['_tt_form_error'] = [
-                'code' => 'E_RATE_LIMIT',
-                'message' => 'Too many attempts. Try again in 5 minutes.',
-                'fields' => null,
-            ];
-            $this->renderForm($email, $next);
-            return;
-        }
 
         if ($email === '' || $password === '') {
             $GLOBALS['_tt_form_error'] = [
