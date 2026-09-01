@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 current_phase: 03
 current_phase_name: Marketplace Listings & Discovery
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-09-01T21:45:00.000Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-09-01T23:30:00.000Z"
 last_activity: 2026-09-01
-last_activity_desc: Plan 03-02 (seller CRUD + admin cron) shipped
+last_activity_desc: Plan 03-03 (corkboard board + listing modal) shipped
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 13
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 03 (Marketplace Listings & Discovery) — EXECUTING
-Plan: 2 of 4 (03-02 complete; 03-03 and 03-04 remain)
-Status: Plan 03-02 shipped
-Last activity: 2026-09-01 — Plan 03-02 complete (seller CRUD + admin cron)
+Plan: 3 of 4 (03-01, 03-02, 03-03 complete; 03-04 remains)
+Status: Plan 03-03 shipped
+Last activity: 2026-09-01 — Plan 03-03 complete (corkboard board + listing modal)
 
 Progress: [███████████] 100% of Phase 2 (5/5 total plans across 2 completed phases)
 
@@ -64,6 +64,10 @@ Recent decisions affecting current work:
 - **2026-09-01 (Phase 3 Plan 03-02)**: `Support\Auth::requireReAuth(int $seconds): array` ships with `sessions.last_seen` as a freshness proxy. Full admin_reauth table + modal is Phase 8 (AD-19); this implementation satisfies the 300s sliding window at 1/3 fidelity (any authenticated activity refreshes last_seen).
 - **2026-09-01 (Phase 3 Plan 03-02)**: Tests for Action classes verify Service + View/Action source markup rather than dispatching through the Action's exit() path (which kills the PHPUnit process). Shape is consistent with existing Phase 2 tests (ProfileEditTest tests Service, SettingsTest tests View source).
 - **2026-09-01 (Phase 3 Plan 03-02)**: ListingService::saveDraft now wraps a transaction: when the pre-edit status is `active`, it appends a `listing_revisions` snapshot AND sets `review_flag=1` BEFORE the update (D-09). Draft/pending/rejected edits just update (no revision row).
+
+- **2026-09-01 (Phase 3 Plan 03-03)**: BrowseAction exposes the effective page as $effectivePage (the page that actually has results) to the view. When the user requests page 999 of 2, $effectivePage is clamped to 1 and the empty-state path renders. The raw request page is preserved in the URL but the active page indicator on the pagination is the effective page.
+- **2026-09-01 (Phase 3 Plan 03-03)**: Guest cork-cell <a> href is /login?next=/board (no modal trigger). Logged-in cork-cell <a> href is #listing-{id} with data-bs-toggle=modal. The CTA span is just a visual hint of the action; the entire card is clickable and the action destination follows the is_guest branch.
+- **2026-09-01 (Phase 3 Plan 03-03)**: View::partial() resolves files in src/Support/View/partials/, NOT in src/Listing/View/. The listing_modal.php is a full View (not a partial), so board.php requires it directly via __DIR__ . '/listing_modal.php' after seeding _tt_view_vars. This is the same pattern the layout uses to require the content view.
 
 - **Initialization (2026-08-26)**: Product name finalized as TicketTrade (was "NSBM Marketplace"). Stack: PHP 8+ / MySQL 8+ / Bootstrap 5 with `ramsey/uuid` only (assignment-mandated). Architecture: Layered Modular Monolith (no framework, no ORM). MVP due 2026-09-02 with 6-person team (Backend ×2, Frontend ×2, Database ×1, QA/Docs ×1).
 - **2026-08-31 (Phase 2 Plan 02-01)**: PHP namespace segments cannot start with a digit, so `tests/Unit/02` and `tests/Integration/02` were renamed to `tests/Unit/Phase02` and `tests/Integration/Phase02`. The runtime semantics are unchanged.
