@@ -263,4 +263,24 @@ class listing_model
         $stmt->execute([$listingId, $snapshotJson, $createdBy]);
         return (int) Db::pdo()->lastInsertId();
     }
+
+    /**
+     * Group counts of listings by status for a given seller. Used by
+     * MyListingsAction to render the 4 tab counts in a single query.
+     *
+     * Returns a PDOStatement the caller iterates; the Action only reads
+     * rows with status in (active, pending, sold, draft).
+     *
+     * @return \PDOStatement
+     */
+    public static function groupCountsBySeller(int $sellerId): \PDOStatement
+    {
+        $stmt = Db::pdo()->prepare(
+            'SELECT status, COUNT(*) AS n FROM listings '
+            . "WHERE seller_id = ? AND status IN ('active', 'pending', 'sold', 'draft') "
+            . 'GROUP BY status'
+        );
+        $stmt->execute([$sellerId]);
+        return $stmt;
+    }
 }
