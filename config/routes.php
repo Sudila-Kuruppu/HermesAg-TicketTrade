@@ -48,5 +48,6 @@ return [
     'POST /admin/cron/ticket-expiry' => ['App\Listing\Action\ListingAutoApproveAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => true, 'rate_limit' => 'admin_cron']],
     'GET /sales'              => ['App\Ticket\Action\SalesAction',       'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /purchases'          => ['App\Ticket\Action\PurchasesAction',   'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
+    'GET /listings/{id}/fragment' => ['App\Listing\Action\ListingFragmentAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /img/{listing_id}/{size}' => ['App\Support\Action\ImageProxyAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
 ];

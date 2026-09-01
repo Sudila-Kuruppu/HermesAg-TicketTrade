@@ -284,4 +284,59 @@ class listing_model
         $stmt->execute([$sellerId]);
         return $stmt;
     }
+
+    /**
+     * Get the next or previous listing in the same category (ordered
+     * created_at DESC). Used by the listing modal's prev/next buttons.
+     *
+     * $direction = 'next' returns the listing created AFTER the
+     *   reference one in DESC order (i.e. the "previous" in time, but
+     *   "next" in the user's browsing flow). $direction = 'prev'
+     *   returns the listing created BEFORE the reference one in DESC
+     *   order (i.e. the "next" in time, "prev" in the user's flow).
+     *
+     * The ordering is stable on (created_at, id) to break ties for
+     * listings created in the same second.
+     *
+     * @return int|null The next/prev listing id, or null if none.
+     */
+    public static function getNextInCategory(int $listingId, ?int $categoryId, string $direction): ?int
+    {
+        // Direction semantics (D-20..D-24): the modal's "Next" button
+        // walks the user DOWN the list (newest → oldest). So:
+        //   next  → older than the current (created_at < current)
+        //   prev  → newer than the current (created_at > current)
+        $comparator = ($direction === 'next') ? '<' : '>';
+
+        // ORDER BY clause flipped for direction.
+        if ($direction === 'next') {
+            $orderBy = 'ORDER BY l.created_at DESC, l.id DESC';
+        } else {
+            $orderBy = 'ORDER BY l.created_at ASC, l.id ASC';
+        }
+
+        if ($categoryId !== null) {
+            $sql = "SELECT l.id FROM listings l "
+                . "WHERE l.category_id = ? AND l.status = 'active' "
+                . "AND l.id <> ? "
+                . "AND l.created_at $comparator (SELECT created_at FROM listings WHERE id = ?) "
+                . "$orderBy LIMIT 1";
+            $stmt = Db::pdo()->prepare($sql);
+            $stmt->bindValue(1, $categoryId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $listingId, PDO::PARAM_INT);
+            $stmt->bindValue(3, $listingId, PDO::PARAM_INT);
+        } else {
+            $sql = "SELECT id FROM listings "
+                . "WHERE status = 'active' AND id <> ? "
+                . "AND created_at $comparator (SELECT created_at FROM listings WHERE id = ?) "
+                . "$orderBy LIMIT 1";
+            $stmt = Db::pdo()->prepare($sql);
+            $stmt->bindValue(1, $listingId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $listingId, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        $row = $stmt->fetch();
+        return $row === false ? null : (int) $row['id'];
+    }
+
 }

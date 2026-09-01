@@ -16,4 +16,6 @@
   } catch (e) {}
 })();
 </script>
+<script defer src="/assets/js/tickettrade.js"></script>
+<script defer src="/assets/js/listing_modal.js"></script>
 </head>
