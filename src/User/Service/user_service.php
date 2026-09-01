@@ -3,26 +3,19 @@
 /**
  * TicketTrade — User\Service\user_service
  *
- * Profile-edit operations on an existing user (Plan 02-02 fills the
- * write surface). Plan 02-03 adds the public read-view lookup.
+ * Plan 02-02 owns the write surface (validateWhatsApp, validateAvatarId,
+ * updateProfile, randomAvatarId). Plan 02-03 owns the public read view
+ * (getByNicknameForPublicProfile, getPublicProfile). getByNickname
+ * (case-insensitive) is shared and used by the owner-only edit flow.
  *
- * The public lookup (getByNicknameForPublicProfile) is a separate method
- * from getByNickname (Plan 02-02, owner-only flows) because
- * auth_service::sanitizeUser is strict by design (strips points /
- * points_frozen / is_admin / is_banned / password_hash for ANY caller),
- * while the public profile View explicitly needs `points` re-injected
- * for the summary header.
+ * Per D-15: nickname is locked at registration. updateProfile() accepts
+ * ONLY the 4 whitelisted fields (full_name, bio, whatsapp, avatar_id);
+ * any other key in $fields is silently dropped.
  *
- * Per AD-14 ("don't reveal the resource exists"): is_banned = TRUE
- * rows are filtered at the query level so the public profile is hidden
- * for banned users (D-06). The same generic 404 page is rendered for
- * banned, non-existent, case-mismatched, and invalid-character URLs.
+ * Per SEC-08: WhatsApp regex is `^(\+94|0)7[0-9]{8}$` — the canonical
+ * Sri Lankan mobile pattern.
  *
- * Per D-15: nickname lookup is case-sensitive. The users table uses
- * utf8mb4_unicode_ci collation (case-insensitive by default), so the
- * lookup uses `BINARY nickname = ?` for the public profile (case-mismatched
- * URLs are 404s, not aliases). Plan 02-02's getByNickname uses
- * LOWER(...) for owner-edit flows and is left untouched here.
+ * Per Pitfall 11: avatar_id is (int) cast + clamped 1..12.
  */
 
 declare(strict_types=1);
@@ -31,18 +24,12 @@ namespace App\User\Service;
 
 use App\Auth\Service\auth_service;
 use App\Support\Db;
+use InvalidArgumentException;
 
 class user_service
 {
     /**
      * Plan 02-02's case-insensitive nickname lookup for owner-only flows.
-     *
-     * Wraps User\Model\user_model::findByNickname + auth_service::sanitizeUser.
-     * Returns the strict-sanitized row (no points, points_frozen, is_admin,
-     * is_banned, password_hash). Plan 02-02 owns this method.
-     *
-     * @param string $nickname
-     * @return array<string,mixed>|null
      */
     public static function getByNickname(string $nickname): ?array
     {
@@ -55,19 +42,6 @@ class user_service
 
     /**
      * Plan 02-03's case-sensitive public-profile lookup.
-     *
-     * Same query shape as Plan 02-02's getByNickname (filters is_banned
-     * at the SQL level per D-06), but uses BINARY nickname = ? for
-     * case-sensitivity (D-15: nickname is locked at registration and
-     * preserved in storage; the URL is the literal stored value).
-     *
-     * Re-injects `points` and `is_verified` AFTER auth_service::sanitizeUser
-     * strips them — the public profile summary header renders both
-     * fields explicitly. password_hash, is_admin, is_banned, points_frozen
-     * are NOT re-injected (T-02-10, T-02-20, T-02-27).
-     *
-     * @param string $nickname
-     * @return array<string,mixed>|null
      */
     public static function getByNicknameForPublicProfile(string $nickname): ?array
     {
@@ -84,14 +58,8 @@ class user_service
         if ($row === false) {
             return null;
         }
-        // Capture the public-visible fields BEFORE sanitizeUser strips
-        // them (sanitizeUser is strict-by-design: strips points,
-        // points_frozen, is_admin, is_banned, password_hash).
         $publicPoints = (int) $row['points'];
         $publicVerified = (bool) $row['is_verified'];
-        // sanitizeUser strips password_hash, is_admin, is_banned,
-        // points, points_frozen. After sanitization, re-inject the two
-        // public-visible fields the View needs.
         $row = auth_service::sanitizeUser($row);
         $row['points'] = $publicPoints;
         $row['is_verified'] = $publicVerified;
@@ -99,12 +67,153 @@ class user_service
     }
 
     /**
-     * Alias for getByNicknameForPublicProfile. Preserved for callers that
-     * reference the public read view by either name (Plan 02-02 Task 1
-     * listed getPublicProfile as the canonical alias).
+     * Alias for getByNicknameForPublicProfile.
      */
     public static function getPublicProfile(string $nickname): ?array
     {
         return self::getByNicknameForPublicProfile($nickname);
+    }
+
+    /**
+     * Plan 02-02's owner profile lookup (by user_id).
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function getById(int $userId): ?array
+    {
+        $row = \App\User\Model\user_model::findById(Db::pdo(), $userId);
+        if ($row === null) {
+            return null;
+        }
+        return auth_service::sanitizeUser($row);
+    }
+
+    /**
+     * Plan 02-02's WhatsApp validator.
+     *
+     * Regex: `^(\+94|0)7[0-9]{8}$` (SEC-08, AGENTS.md Constraints).
+     * Returns the canonicalized value if valid.
+     * Returns null if empty (whatsapp is optional in the profile).
+     * Throws InvalidArgumentException if the format is invalid.
+     */
+    public static function validateWhatsApp(?string $s): ?string
+    {
+        if ($s === null) {
+            return null;
+        }
+        $s = trim($s);
+        if ($s === '') {
+            return null;
+        }
+        if (!preg_match('/^(\+94|0)7[0-9]{8}$/', $s)) {
+            throw new InvalidArgumentException(
+                'Use a Sri Lankan mobile (e.g., +94771234567 or 0771234567).'
+            );
+        }
+        return $s;
+    }
+
+    /**
+     * Plan 02-02's avatar_id validator + clamp.
+     *
+     * Per Pitfall 11: (int) cast + clamp 1..12. Out-of-range values
+     * are clamped to the nearest valid value, NOT rejected.
+     */
+    public static function validateAvatarId(mixed $v): int
+    {
+        return max(1, min(12, (int) $v));
+    }
+
+    /**
+     * Plan 02-02's random avatar_id generator (D-19).
+     */
+    public static function randomAvatarId(): int
+    {
+        return random_int(1, 12);
+    }
+
+    /**
+     * Plan 02-02's profile-update with strict field whitelist.
+     *
+     * Accepts ONLY full_name, bio, whatsapp, avatar_id. Any other key
+     * in $fields is silently dropped (whitelist at the Service layer,
+     * not the View).
+     *
+     * @param int $userId
+     * @param array<string,mixed> $fields
+     * @return array{ok:bool,updated?:array<string,mixed>,error?:array}
+     */
+    public static function updateProfile(int $userId, array $fields): array
+    {
+        $allowed = ['full_name', 'bio', 'whatsapp', 'avatar_id'];
+        $clean = [];
+        foreach ($allowed as $k) {
+            if (array_key_exists($k, $fields)) {
+                $clean[$k] = $fields[$k];
+            }
+        }
+        if (empty($clean)) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'No editable fields provided.',
+                ],
+            ];
+        }
+
+        // Validate WhatsApp if present
+        if (array_key_exists('whatsapp', $clean)) {
+            try {
+                $clean['whatsapp'] = self::validateWhatsApp($clean['whatsapp']);
+            } catch (InvalidArgumentException $e) {
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_VALIDATION',
+                        'message' => $e->getMessage(),
+                        'fields' => ['whatsapp' => $e->getMessage()],
+                    ],
+                ];
+            }
+        }
+        // Clamp avatar_id if present
+        if (array_key_exists('avatar_id', $clean)) {
+            $clean['avatar_id'] = self::validateAvatarId($clean['avatar_id']);
+        }
+        // full_name: non-empty
+        if (array_key_exists('full_name', $clean) && trim((string) $clean['full_name']) === '') {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'Full name is required.',
+                    'fields' => ['full_name' => 'Full name is required.'],
+                ],
+            ];
+        }
+        // bio: ≤ 500 chars
+        if (array_key_exists('bio', $clean) && strlen((string) $clean['bio']) > 500) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'Bio must be 500 characters or fewer.',
+                    'fields' => ['bio' => 'Bio must be 500 characters or fewer.'],
+                ],
+            ];
+        }
+
+        $ok = \App\User\Model\user_model::updateProfile(Db::pdo(), $userId, $clean);
+        if (!$ok) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_NOT_FOUND',
+                    'message' => 'User not found.',
+                ],
+            ];
+        }
+        return ['ok' => true, 'updated' => $clean];
     }
 }

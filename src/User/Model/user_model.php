@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — User\Model\user_model
  *
@@ -33,11 +34,11 @@ class user_model
     public static function updateProfile(PDO $pdo, int $userId, array $fields): bool
     {
         $allowed = ['full_name', 'bio', 'whatsapp', 'avatar_id'];
-        $sets = [];
+        $setParts = [];
         $vals = [];
         foreach ($allowed as $k) {
             if (array_key_exists($k, $fields)) {
-                $sets[] = "$k = ?";
+                $setParts[] = "$k = ?";
                 if ($k === 'avatar_id') {
                     $vals[] = max(1, min(12, (int) $fields[$k]));
                 } else {
@@ -45,14 +46,16 @@ class user_model
                 }
             }
         }
-        if (empty($sets)) {
+        if (empty($setParts)) {
             return false;
         }
-        $vals[] = $userId;
         $now = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))->format('Y-m-d H:i:s');
-        $sets[] = 'updated_at = ?';
+        $setParts[] = 'updated_at = ?';
         $vals[] = $now;
-        $sql = 'UPDATE users SET ' . implode(', ', $sets) . ' WHERE user_id = ?';
+        // WHERE user_id = ? comes last; the placeholder order is
+        // [set parts...] + updated_at + user_id.
+        $vals[] = $userId;
+        $sql = 'UPDATE users SET ' . implode(', ', $setParts) . ' WHERE user_id = ?';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($vals);
         return $stmt->rowCount() > 0;
