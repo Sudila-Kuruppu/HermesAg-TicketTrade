@@ -71,3 +71,11 @@ if (session_status() !== PHP_SESSION_ACTIVE && PHP_SAPI !== 'cli') {
 // CSRF: 400 + E_CSRF envelope on POST/PUT/PATCH/DELETE without a
 // matching token.
 \App\Support\Csrf::verify();
+
+// Flash-toast carry: a server-set flash message written to
+// $_SESSION['_tt_flash_toast'] before a 302 redirect is consumed on
+// the next request (D-02 + D-07). The flash is read once and unset.
+if (PHP_SAPI !== 'cli' && !empty($_SESSION['_tt_flash_toast'])) {
+    $GLOBALS['_tt_flash_toast'] = $_SESSION['_tt_flash_toast'];
+    unset($_SESSION['_tt_flash_toast']);
+}

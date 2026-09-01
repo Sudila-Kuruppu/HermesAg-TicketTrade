@@ -1,21 +1,32 @@
 <?php
+
 /**
  * TicketTrade — Auth\Action\HomeAction
  *
- * Stub Action for Phase 2 Plan 02-01. Plan 02-02 / 02-03 fill the body.
+ * Phase 2 Plan 02-02. The / route. Marketing landing page with a
+ * "Get Started" CTA → /register and a "Sign In" CTA → /login.
+ * Phase 3 replaces this with the real landing.
  */
 
 declare(strict_types=1);
 
 namespace App\Auth\Action;
 
+use App\Support\Auth as AuthGuard;
+use App\Support\View;
+
 class HomeAction
 {
     public function handle(): void
     {
-        \App\Support\View::render(
-            __DIR__ . '/../../View/placeholder.php',
-            ['note' => 'Phase 2 Plan 02-02 fills the landing page.']
+        // Already logged in → bounce to /board.
+        if (AuthGuard::currentUser() !== null) {
+            header('Location: /board');
+            exit;
+        }
+        View::render(
+            __DIR__ . '/../View/home.php',
+            []
         );
     }
 }

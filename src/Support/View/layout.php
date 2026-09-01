@@ -23,8 +23,9 @@ $themeDefault = $surface === 'admin' ? 'light' : 'dark';
 <?php require __DIR__ . '/partials/skip_link.php'; ?>
 <main id="main" tabindex="-1">
 <?php
-if (!empty($_tt_content_view) && is_file($_tt_content_view)) {
-    require $_tt_content_view;
+$contentView = $GLOBALS['_tt_content_view'] ?? '';
+if ($contentView !== '' && is_file($contentView)) {
+    require $contentView;
 } else {
     echo '<p>Missing content view.</p>';
 }

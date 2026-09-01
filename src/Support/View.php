@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Support\View
  *
@@ -47,5 +48,25 @@ class View
         $path = __DIR__ . '/View/partials/' . $name . '.php';
         $GLOBALS['_tt_view_vars'] = $vars;
         require $path;
+    }
+
+    /**
+     * Set a flash toast that survives a 302 redirect (D-02 + D-07).
+     *
+     * The bootstrap reads $_SESSION['_tt_flash_toast'] on the next
+     * request, copies it into $GLOBALS['_tt_flash_toast'], and unsets
+     * it. Setting $GLOBALS directly does NOT work because globals are
+     * per-request and the next request gets a fresh symbol table.
+     *
+     * @param string $type One of: success, info, warning, error
+     * @param string $message HTML-escaped or trusted HTML
+     */
+    public static function flash(string $type, string $message): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            $GLOBALS['_tt_flash_toast'] = ['type' => $type, 'message' => $message];
+            return;
+        }
+        $_SESSION['_tt_flash_toast'] = ['type' => $type, 'message' => $message];
     }
 }

@@ -1,20 +1,39 @@
 <?php
+
 /**
  * TicketTrade — Auth\Service\auth_service
  *
  * Per AD-18: the SOLE writer of password_hash() / password_verify() in
- * the codebase. Plan 02-02 lands the full method surface (register,
- * login, verify, forgotPassword, resetPassword, logout). Plan 02-01
- * ships the bcrypt primitives and the helpers used by Plan 02-02 and
- * the Wave 0 tests.
+ * the codebase. The sole writer of the users.password_hash column, the
+ * sole writer of sessions (DB-backed) per D-05, the sole writer of the
+ * email_verifications / password_resets token lifecycle, and the canonical
+ * helper for the login → startSession path.
+ *
+ * Phase 2 Plan 02-02 lands the full method surface (register, verifyEmail,
+ * login, forgotPassword, consumePasswordReset, startSession, endSession,
+ * updateLastSeen, findUserForLogin).
+ *
+ * Phase 6's Points\Service\points_service::awardVerificationBonus($userId)
+ * is the +50 stub this plan lands; the stub lives in
+ * src/Points/Service/points_service.php and writes the points_log row +
+ * bumps users.points/tier.
  */
 
 declare(strict_types=1);
 
 namespace App\Auth\Service;
 
-use App\Support\Auth;
+use App\Auth\Model\email_verification_model;
+use App\Auth\Model\password_reset_model;
+use App\Auth\Model\session_model;
+use App\Auth\Model\student_id_allowlist_model;
+use App\Auth\Model\user_model;
+use App\Support\Auth as AuthGuard;
 use App\Support\Crypto;
+use App\Support\Db;
+use DateTime;
+use DateTimeZone;
+use PDO;
 
 class auth_service
 {
@@ -22,6 +41,8 @@ class auth_service
 
     /**
      * Hash a plaintext password at the configured bcrypt cost (12).
+     *
+     * Sole writer per AD-18.
      */
     public static function hashPassword(string $plain): string
     {
@@ -77,7 +98,7 @@ class auth_service
      */
     public static function sanitizeUser(array $row): array
     {
-        return Auth::sanitizeUser($row);
+        return AuthGuard::sanitizeUser($row);
     }
 
     /**
@@ -110,5 +131,461 @@ class auth_service
             return '/board';
         }
         return $next;
+    }
+
+    /**
+     * Find a user by email (normalized: lowercase + trim). Used by login()
+     * to gate the password_verify call.
+     */
+    public static function findUserForLogin(string $email): ?array
+    {
+        return user_model::findByEmail(Db::pdo(), $email);
+    }
+
+    /**
+     * Register a new user.
+     *
+     * Validates format + allowlist + uniqueness, hashes the password,
+     * inserts the users row + email_verifications row in one
+     * transaction, and returns the raw verify token so the caller
+     * can surface it in the flash toast (D-02 dev simulation).
+     *
+     * Per D-13, the field-level anti-enumeration collapse:
+     *  - bad email format         → E_VALIDATION (field: email)
+     *  - password < 8 chars       → E_PASSWORD_WEAK
+     *  - bad nickname format      → E_VALIDATION (field: nickname)
+     *  - allowlist miss (either)  → E_AUTH_ALLOWLIST (combined copy)
+     *  - email already registered → E_AUTH_ALLOWLIST (same combined copy)
+     *  - nickname reserved/taken  → E_NICKNAME_TAKEN / E_VALIDATION
+     *  - student ID mismatch with email in allowlist → E_AUTH_ALLOWLIST
+     *
+     * @return array{ok:bool,user_id?:int,verify_token?:string,error?:array}
+     */
+    public static function register(
+        string $email,
+        string $password,
+        string $nickname,
+        string $studentId,
+        string $fullName,
+        ?int $avatarId = null
+    ): array {
+        $pdo = Db::pdo();
+
+        // Field-level format errors (public, no enumeration concern)
+        $email = strtolower(trim($email));
+        $nickname = trim($nickname);
+        $studentId = trim($studentId);
+        $fullName = trim($fullName);
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)
+            || !str_ends_with($email, '@students.nsbm.ac.lk')) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'Use your `@students.nsbm.ac.lk` email.',
+                    'fields' => ['email' => 'Use your `@students.nsbm.ac.lk` email.'],
+                ],
+            ];
+        }
+        if (strlen($password) < 8) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_PASSWORD_WEAK',
+                    'message' => 'Password must be at least 8 characters.',
+                    'fields' => ['password' => 'Password must be at least 8 characters.'],
+                ],
+            ];
+        }
+        if (!preg_match('/^[A-Za-z0-9_]{3,30}$/', $nickname)) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'Nickname must be 3–30 letters, numbers, or underscores.',
+                    'fields' => ['nickname' => 'Nickname must be 3–30 letters, numbers, or underscores.'],
+                ],
+            ];
+        }
+
+        // Reserved nickname anti-squatting (Q4 in RESEARCH).
+        $reserved = require APP_ROOT . '/config/reserved_nicknames.php';
+        if (in_array(strtolower($nickname), array_map('strtolower', $reserved), true)) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_VALIDATION',
+                    'message' => 'Nickname reserved. Pick another.',
+                    'fields' => ['nickname' => 'Nickname reserved. Pick another.'],
+                ],
+            ];
+        }
+
+        // Combined anti-enumeration (D-13):
+        //   - email not in allowlist
+        //   - student ID not in allowlist
+        //   - email + student ID pair mismatched
+        //   - email already registered as a user
+        // all collapse to E_AUTH_ALLOWLIST with the same copy.
+        $allowEmail = student_id_allowlist_model::findByEmail($pdo, $email);
+        $allowStudent = student_id_allowlist_model::findByStudentId($pdo, $studentId);
+        if ($allowEmail === null || $allowStudent === null
+            || $allowEmail['student_id'] !== $studentId) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_AUTH_ALLOWLIST',
+                    'message' => 'Email or student ID not recognized. Check both and try again.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        // Pre-check duplicate email so the combined branch catches it.
+        if (user_model::findByEmail($pdo, $email) !== null) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_AUTH_ALLOWLIST',
+                    'message' => 'Email or student ID not recognized. Check both and try again.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        // Pre-check duplicate nickname (public per D-13).
+        if (user_model::findByNickname($pdo, $nickname) !== null) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_NICKNAME_TAKEN',
+                    'message' => 'Nickname taken. Pick another.',
+                    'fields' => ['nickname' => 'Nickname taken. Pick another.'],
+                ],
+            ];
+        }
+
+        // Hash + insert (the only password_hash call in the codebase).
+        $hash = self::hashPassword($password);
+        $avatar = $avatarId ?? random_int(1, 12);
+
+        $rawToken = self::randomToken();
+        $hashToken = self::hashToken($rawToken);
+        $expiresAt = (new DateTime('+24 hours', new DateTimeZone('Asia/Colombo')))
+            ->format('Y-m-d H:i:s');
+
+        try {
+            $pdo->beginTransaction();
+            $userId = user_model::insert($pdo, [
+                'email' => $email,
+                'student_id' => $studentId,
+                'nickname' => $nickname,
+                'password_hash' => $hash,
+                'full_name' => $fullName,
+                'avatar_id' => $avatar,
+            ]);
+            email_verification_model::insert($pdo, $userId, $hashToken, $expiresAt);
+            $pdo->commit();
+        } catch (\PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            // Race on the unique nickname or email index (uniq_email /
+            // uniq_nickname / uniq_student_id) — collapse to the same
+            // combined E_AUTH_ALLOWLIST so the public copy stays the
+            // same for the attacker.
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_AUTH_ALLOWLIST',
+                    'message' => 'Email or student ID not recognized. Check both and try again.',
+                    'fields' => null,
+                ],
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'user_id' => $userId,
+            'verify_token' => $rawToken,
+        ];
+    }
+
+    /**
+     * Verify an email-verification token.
+     *
+     * Returns E_TOKEN_INVALID for any failure (not used, expired, hash
+     * mismatch). On success, marks the row used, sets is_verified=TRUE
+     * on the user, and triggers the +50 points stub via
+     * Points\Service\points_service::awardVerificationBonus.
+     */
+    public static function verifyEmail(string $rawToken): array
+    {
+        $pdo = Db::pdo();
+        $tokenHash = self::hashToken($rawToken);
+        $row = email_verification_model::findActiveByHash($pdo, $tokenHash);
+        if ($row === null) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_TOKEN_INVALID',
+                    'message' => 'Verification link is invalid or expired.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        $userId = (int) $row['user_id'];
+        $nickname = (string) ($row['nickname'] ?? '');
+
+        // Mark the verification row used and flip is_verified=TRUE inside
+        // a single transaction. The +50 points award is delegated to
+        // Points\Service\points_service::awardVerificationBonus which
+        // manages its own transaction (the two-step shape matches the
+        // AD-10 sole-writer rule: only points_service touches points_log
+        // and users.points/tier outside of Phase 6).
+        try {
+            $pdo->beginTransaction();
+            if (!email_verification_model::markUsed($pdo, (int) $row['id'])) {
+                $pdo->rollBack();
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_TOKEN_INVALID',
+                        'message' => 'Verification link is invalid or expired.',
+                        'fields' => null,
+                    ],
+                ];
+            }
+            $stmt = $pdo->prepare('UPDATE users SET is_verified = TRUE, updated_at = NOW() WHERE user_id = ?');
+            $stmt->execute([$userId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_TOKEN_INVALID',
+                    'message' => 'Verification link is invalid or expired.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        // Best-effort +50 (Phase 2 stub). The verify itself succeeded
+        // above; the points award is a side-effect logged but does not
+        // fail the response.
+        \App\Points\Service\points_service::awardVerificationBonus($userId);
+        return [
+            'ok' => true,
+            'user_id' => $userId,
+            'nickname' => $nickname,
+        ];
+    }
+
+    /**
+     * Login with email + password.
+     *
+     * Always runs password_verify against the user's hash OR the dummy
+     * sentinel (Pitfall 3 — timing attack). On success, starts a session.
+     */
+    public static function login(string $email, string $password): array
+    {
+        $user = self::findUserForLogin($email);
+        $hash = $user['password_hash'] ?? self::dummyHash();
+        $verified = self::verifyPassword($password, $hash);
+        if (!$verified || $user === null) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_AUTH_INVALID',
+                    'message' => 'Email or password is incorrect.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        // Banned users get the same generic copy (D-06 — don't reveal).
+        if (!empty($user['is_banned'])) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_AUTH_INVALID',
+                    'message' => 'Email or password is incorrect.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        self::startSession((int) $user['user_id']);
+        return [
+            'ok' => true,
+            'user_id' => (int) $user['user_id'],
+        ];
+    }
+
+    /**
+     * Start a fresh DB-backed session for the given user. Called by
+     * login() (on success), register() (auto-login per D-02), and
+     * consumePasswordReset() (auto-login on reset).
+     *
+     * Calls session_regenerate_id(true) so the new session ID is used
+     * for the row's session_id (defends against session-fixation).
+     */
+    public static function startSession(int $userId): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+        session_regenerate_id(true);
+        $sid = session_id();
+        $user = user_model::findById(Db::pdo(), $userId);
+        if ($user === null) {
+            return;
+        }
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? substr((string) $_SERVER['HTTP_USER_AGENT'], 0, 255) : null;
+        try {
+            session_model::insert(Db::pdo(), $sid, $userId, $ip, $ua);
+        } catch (\Throwable $e) {
+            // schema missing or duplicate session_id; do not abort.
+        }
+        $GLOBALS['current_user'] = $user;
+        // Force Auth::boot() to re-read on the next request (we just
+        // mutated the session cookie; Support\Auth::boot will read it
+        // and look up the sessions row normally on the next request).
+    }
+
+    /**
+     * Bump sessions.last_seen (called from Support\Auth::boot() in the
+     * 5-min idempotency window per D-04).
+     */
+    public static function updateLastSeen(string $sessionId): void
+    {
+        if ($sessionId === '') {
+            return;
+        }
+        try {
+            session_model::touch(Db::pdo(), $sessionId);
+        } catch (\Throwable $e) {
+            // idempotent — never abort the request.
+        }
+    }
+
+    /**
+     * End a session (D-05 DELETE-based logout). Called from
+     * LogoutAction::handlePost().
+     */
+    public static function endSession(string $sessionId, int $userId): void
+    {
+        try {
+            session_model::delete(Db::pdo(), $sessionId, $userId);
+        } catch (\Throwable $e) {
+            // schema missing; session_destroy below still cleans up.
+        }
+    }
+
+    /**
+     * Generate a password-reset token.
+     *
+     * Per D-07: the function always returns ok=true (anti-enumeration).
+     * The raw token is returned ONLY in non-production environments for
+     * the dev-reset-link log line (OQ-7 answer). In production the
+     * function returns ['ok' => true, 'token' => null].
+     */
+    public static function requestPasswordReset(string $email): array
+    {
+        $pdo = Db::pdo();
+        $user = user_model::findByEmail($pdo, $email);
+        if ($user === null) {
+            return ['ok' => true, 'token' => null];
+        }
+        $raw = self::randomToken();
+        $hash = self::hashToken($raw);
+        $expiresAt = (new DateTime('+24 hours', new DateTimeZone('Asia/Colombo')))
+            ->format('Y-m-d H:i:s');
+        try {
+            password_reset_model::insert($pdo, (int) $user['user_id'], $hash, $expiresAt);
+        } catch (\Throwable $e) {
+            return ['ok' => true, 'token' => null];
+        }
+        // Dev simulation (OQ-7): the link is NEVER surfaced in the UI.
+        // The Action writes a single error_log line so a developer can
+        // copy the token from the dev server log.
+        $tokenForCaller = (getenv('APP_ENV') === 'production') ? null : $raw;
+        return ['ok' => true, 'token' => $tokenForCaller];
+    }
+
+    /**
+     * Read-only peek for the GET /reset-password form (does NOT consume).
+     */
+    public static function peekPasswordReset(string $rawToken): ?array
+    {
+        $hash = self::hashToken($rawToken);
+        return password_reset_model::findActiveByHash(Db::pdo(), $hash);
+    }
+
+    /**
+     * Consume a password-reset token, hash the new password, mark the
+     * row used, and start a session for the user.
+     */
+    public static function consumePasswordReset(string $rawToken, string $newPassword): array
+    {
+        if (strlen($newPassword) < 8) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_PASSWORD_WEAK',
+                    'message' => 'Password must be at least 8 characters.',
+                    'fields' => ['password' => 'Password must be at least 8 characters.'],
+                ],
+            ];
+        }
+        $pdo = Db::pdo();
+        $hash = self::hashToken($rawToken);
+        $row = password_reset_model::findActiveByHash($pdo, $hash);
+        if ($row === null) {
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_TOKEN_INVALID',
+                    'message' => 'Verification link is invalid or expired.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        $userId = (int) $row['user_id'];
+        $newHash = self::hashPassword($newPassword);
+        try {
+            $pdo->beginTransaction();
+            if (!password_reset_model::markUsed($pdo, (int) $row['id'])) {
+                $pdo->rollBack();
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_TOKEN_INVALID',
+                        'message' => 'Verification link is invalid or expired.',
+                        'fields' => null,
+                    ],
+                ];
+            }
+            $stmt = $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE user_id = ?');
+            $stmt->execute([$newHash, $userId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_TOKEN_INVALID',
+                    'message' => 'Verification link is invalid or expired.',
+                    'fields' => null,
+                ],
+            ];
+        }
+        self::startSession($userId);
+        return [
+            'ok' => true,
+            'user_id' => $userId,
+        ];
     }
 }

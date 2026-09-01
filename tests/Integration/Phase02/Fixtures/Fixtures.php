@@ -31,6 +31,10 @@ abstract class Fixtures extends TestCase
         // Reset the singleton so each test gets a fresh PDO
         Db::reset();
         $this->pdo = Db::pdo();
+        // Pin the session timezone to match the app (Asia/Colombo) so
+        // NOW() comparisons in seed data (which use PHP Asia/Colombo time)
+        // behave consistently.
+        $this->pdo->exec("SET time_zone = '+05:30'");
         $this->resetTables();
     }
 
