@@ -85,7 +85,7 @@ class listing_service
         if ($load['ok'] === false) {
             return $load;
         }
-        $beforeRow = $load['result'] ?? listing_model::findById($listingId);
+        $beforeRow = $load['data'] ?? listing_model::findById($listingId);
 
         $v = self::validateListingData($data);
         if ($v['ok'] === false) {
@@ -140,7 +140,7 @@ class listing_service
         if ($load['ok'] === false) {
             return $load;
         }
-        $row = $load['result'];
+        $row = $load['data'];
 
         if ($row['status'] !== 'draft' && $row['status'] !== 'rejected') {
             return Error::envelope(false, null, [
