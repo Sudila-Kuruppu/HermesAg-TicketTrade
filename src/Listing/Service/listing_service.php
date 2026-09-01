@@ -77,15 +77,15 @@ class listing_service
      */
     public static function saveDraft(int $listingId, int $sellerId, array $data): array
     {
-        $rl = self::enforceRateLimit($sellerId);
-        if ($rl !== null) {
-            return $rl;
-        }
+        // No rate-limit on edits: only the createDraft / submitDraft
+        // flows cap at 20/hr/user. Edits are bounded by the listing's
+        // status state-machine.
 
         $load = self::loadForEdit($listingId, $sellerId);
         if ($load['ok'] === false) {
             return $load;
         }
+        $beforeRow = $load['result'] ?? listing_model::findById($listingId);
 
         $v = self::validateListingData($data);
         if ($v['ok'] === false) {
@@ -94,8 +94,30 @@ class listing_service
         $clean = $v['data'];
 
         try {
+            $pdo = Db::pdo();
+            $pdo->beginTransaction();
+
+            // D-09: if the current status is `active`, capture a pre-edit
+            // snapshot to listing_revisions and set review_flag=1 BEFORE
+            // applying the update. This lets the admin soft-revert if
+            // they reject the edit later.
+            $flagged = false;
+            if ($beforeRow !== null && (string) ($beforeRow['status'] ?? '') === 'active') {
+                self::appendRevisionSnapshot(
+                    $listingId,
+                    $sellerId,
+                    is_array($beforeRow) ? $beforeRow : []
+                );
+                listing_model::setReviewFlag($listingId, true);
+                $flagged = true;
+            }
+
             listing_model::update($listingId, $clean);
+            $pdo->commit();
         } catch (\Throwable $e) {
+            if (isset($pdo) && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             return Error::envelope(false, null, [
                 'code' => 'E_VALIDATION',
                 'message' => 'Could not save listing.',
@@ -103,7 +125,10 @@ class listing_service
         }
 
         $row = listing_model::findById($listingId);
-        return Error::envelope(true, $row, null);
+        return Error::envelope(true, [
+            'listing' => $row,
+            'review_flagged' => $flagged,
+        ], null);
     }
 
     /**
@@ -443,6 +468,172 @@ class listing_service
             ]);
         }
         return Error::envelope(true, $row, null);
+    }
+
+    /**
+     * Run the auto-approve sweep (Plan 03-02 cron Action). Sets every
+     * `pending` listing older than 24 hours to `active`, stamps
+     * `approved_at = NOW()`, leaves `approved_by = NULL` (auto-approved).
+     *
+     * Returns the AD-16 envelope with `data.processed = $pdo->rowCount()`.
+     * Idempotent: a sweep with no eligible rows returns processed=0.
+     *
+     * @return array{ok:bool,data:array,error:?array}
+     */
+    public static function runAutoApproveSweep(int $actorUserId): array
+    {
+        try {
+            $pdo = Db::pdo();
+            $sql = 'UPDATE listings SET status = \'active\', '
+                . 'approved_at = NOW(), approved_by = NULL, '
+                . 'updated_at = NOW() '
+                . 'WHERE status = \'pending\' '
+                . 'AND created_at <= NOW() - INTERVAL 24 HOUR';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute();
+            $processed = (int) $stmt->rowCount();
+
+            self::writeCronLog(
+                'listing.auto_approve',
+                (int) $actorUserId,
+                $processed,
+                []
+            );
+
+            return Error::envelope(true, [
+                'processed' => $processed,
+                'errors' => [],
+            ], null);
+        } catch (\Throwable $e) {
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Auto-approve sweep failed.',
+            ]);
+        }
+    }
+
+    /**
+     * Soft-delete a listing by flipping status to `removed`. The row
+     * stays in the DB for audit; the seller dashboard hides it.
+     *
+     * Per D-14: caller must enforce ownership before calling.
+     *
+     * @return array{ok:bool,data:?int,error:?array}
+     */
+    public static function softDelete(int $listingId, int $sellerId): array
+    {
+        $row = listing_model::findById($listingId);
+        if ($row === null) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_NOT_FOUND',
+                'message' => 'Listing not found.',
+            ]);
+        }
+        if ((int) $row['seller_id'] !== $sellerId) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_FORBIDDEN',
+                'message' => 'You do not have permission to modify this listing.',
+            ]);
+        }
+        if (!in_array($row['status'], ['active', 'rejected', 'sold'], true)) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_FORBIDDEN',
+                'message' => 'This listing cannot be removed in its current state.',
+            ]);
+        }
+        try {
+            listing_model::setStatus($listingId, 'removed');
+        } catch (\Throwable $e) {
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not remove listing.',
+            ]);
+        }
+        return Error::envelope(true, 1, null);
+    }
+
+    /**
+     * Hard-delete a `draft` or `pending` listing (no audit trail needed
+     * for never-published rows). Returns affected row count.
+     *
+     * @return array{ok:bool,data:?int,error:?array}
+     */
+    public static function hardDelete(int $listingId, int $sellerId): array
+    {
+        $row = listing_model::findById($listingId);
+        if ($row === null) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_NOT_FOUND',
+                'message' => 'Listing not found.',
+            ]);
+        }
+        if ((int) $row['seller_id'] !== $sellerId) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_FORBIDDEN',
+                'message' => 'You do not have permission to modify this listing.',
+            ]);
+        }
+        if (!in_array($row['status'], ['draft', 'pending'], true)) {
+            return Error::envelope(false, null, [
+                'code' => 'E_LISTING_FORBIDDEN',
+                'message' => 'Only drafts and pending listings can be hard-deleted.',
+            ]);
+        }
+        try {
+            $stmt = Db::pdo()->prepare('DELETE FROM listings WHERE id = ?');
+            $stmt->execute([$listingId]);
+            return Error::envelope(true, (int) $stmt->rowCount(), null);
+        } catch (\Throwable $e) {
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not delete listing.',
+            ]);
+        }
+    }
+
+    /**
+     * Internal helper. Append a structured run-log row to the cron_log
+     * table (Plan 03-02 migration 012). Phase 9 will migrate this to
+     * the hash-chained audit_log (AD-12).
+     */
+    private static function writeCronLog(string $jobName, int $actorUserId, int $processed, array $errors): void
+    {
+        try {
+            $stmt = Db::pdo()->prepare(
+                'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '
+                . 'VALUES (?, NOW(), ?, ?, ?, NOW())'
+            );
+            $stmt->execute([
+                $jobName,
+                $processed,
+                json_encode($errors, JSON_UNESCAPED_UNICODE),
+                $actorUserId > 0 ? $actorUserId : null,
+            ]);
+        } catch (\Throwable $e) {
+            // Logging failures must not break the action.
+            error_log('[cron_log] write failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Internal: write the pre-edit snapshot to listing_revisions. The
+     * snapshot is the full row JSON-encoded so a later admin "revert to
+     * this version" can reconstruct the previous state (D-09).
+     *
+     * @param array<string,mixed> $beforeData The listing row BEFORE the update.
+     */
+    private static function appendRevisionSnapshot(int $listingId, int $by, array $beforeData): void
+    {
+        $json = json_encode($beforeData, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{}';
+        }
+        try {
+            listing_revision_model::insert($listingId, $json, $by);
+        } catch (\Throwable $e) {
+            // A failed snapshot must not break the edit itself.
+            error_log('[listing_revisions] snapshot failed: ' . $e->getMessage());
+        }
     }
 
     /**
