@@ -24,6 +24,14 @@ class user_model
         return $r === false ? null : $r;
     }
 
+    public static function findById(PDO $pdo, int $userId): ?array
+    {
+        $stmt = $pdo->prepare('SELECT * FROM users WHERE user_id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $r = $stmt->fetch();
+        return $r === false ? null : $r;
+    }
+
     /**
      * Update a user profile with a strict field whitelist.
      *
