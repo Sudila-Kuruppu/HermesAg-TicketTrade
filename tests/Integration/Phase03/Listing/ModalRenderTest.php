@@ -23,6 +23,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class ModalRenderTest extends Fixtures
 {
+
     public function test_modal_has_fullscreen_and_centered_classes(): void
     {
         $out = $this->renderBoardSeeded();

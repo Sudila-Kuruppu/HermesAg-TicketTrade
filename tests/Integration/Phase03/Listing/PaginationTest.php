@@ -21,6 +21,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class PaginationTest extends Fixtures
 {
+
     public function test_50_listings_shows_no_pagination(): void
     {
         $sellerId = $this->seedUser();

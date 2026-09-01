@@ -22,6 +22,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class GuestBrowseTest extends Fixtures
 {
+
     public function test_guest_sees_corkboard_with_cards(): void
     {
         $sellerId = $this->seedUser();

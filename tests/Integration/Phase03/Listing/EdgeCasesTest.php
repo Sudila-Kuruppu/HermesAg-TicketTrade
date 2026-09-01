@@ -26,6 +26,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class EdgeCasesTest extends Fixtures
 {
+
     public function test_xss_in_q_is_escaped_in_input(): void
     {
         $sellerId = $this->seedUser();

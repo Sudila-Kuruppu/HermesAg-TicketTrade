@@ -27,6 +27,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class BrowseBoardTest extends Fixtures
 {
+
     public function test_board_with_no_listings_renders_empty_state(): void
     {
         $out = $this->renderBoard(null);

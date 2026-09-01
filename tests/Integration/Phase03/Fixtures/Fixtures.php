@@ -26,9 +26,21 @@ abstract class Fixtures extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $GLOBALS['current_user'] = null;
+        $GLOBALS['_tt_view_vars'] = [];
+        $GLOBALS['_tt_content_view'] = '';
+        $GLOBALS['_tt_surface'] = null;
+        $GLOBALS['_tt_path_params'] = [];
         Db::reset();
         $this->pdo = Db::pdo();
         $this->pdo->exec("SET time_zone = '+05:30'");
+        // Roll back any open transaction left behind by a previous test
+        // (some Service code paths open transactions; if a prior test
+        // raised mid-transaction without rollBack, locks are still held
+        // and TRUNCATE will silently no-op on locked tables).
+        if ($this->pdo->inTransaction()) {
+            $this->pdo->rollBack();
+        }
         $this->resetTables();
         $this->ensureCategories();
     }

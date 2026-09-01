@@ -24,6 +24,7 @@ use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class SearchTest extends Fixtures
 {
+
     public function test_q_filter_renders_only_matching_listings(): void
     {
         $sellerId = $this->seedUser();
