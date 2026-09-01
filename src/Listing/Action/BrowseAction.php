@@ -48,7 +48,7 @@ class BrowseAction
         }
 
         $cat = null;
-        if (isset($_GET['cat']) && $_GET['cat'] !== '') {
+        if (isset($_GET['cat']) && $_GET['cat'] !== '' && is_numeric($_GET['cat'])) {
             $candidate = (int) $_GET['cat'];
             if ($candidate > 0) {
                 $catCheck = category_service::getById($candidate);
@@ -71,7 +71,15 @@ class BrowseAction
             $rows = $search['data']['rows'] ?? [];
             $total = (int) ($search['data']['total'] ?? 0);
             $pages = (int) ($search['data']['pages'] ?? 1);
-            $effectivePage = (int) ($search['data']['page'] ?? $page);
+            // Clamp the effective page: if the user requested a page
+            // beyond the available range, fall back to page 1 (the
+            // empty-state path). Otherwise, clamp to [1, $pages].
+            $requestedPage = (int) ($search['data']['page'] ?? $page);
+            if ($requestedPage > $pages) {
+                $effectivePage = 1;
+            } else {
+                $effectivePage = max(1, $requestedPage);
+            }
         }
 
         // -------- Load the category tab strip ------------------------
