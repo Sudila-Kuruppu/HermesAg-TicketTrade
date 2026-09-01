@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Listing\Model\listing_model
  *
@@ -44,14 +45,14 @@ class listing_model
             (string) $data['description'],
             (int) $data['price_cents'],
             (string) $data['type'],
-            $data['condition'] ?? NULL,
-            isset($data['duration_minutes']) ? (int) $data['duration_minutes'] : NULL,
-            $data['delivery_method'] ?? NULL,
-            $data['availability'] ?? NULL,
+            $data['condition'] ?? null,
+            isset($data['duration_minutes']) ? (int) $data['duration_minutes'] : null,
+            $data['delivery_method'] ?? null,
+            $data['availability'] ?? null,
             (int) ($data['quantity'] ?? 1),
             0,
             (string) ($data['status'] ?? 'draft'),
-            isset($data['source_listing_id']) ? (int) $data['source_listing_id'] : NULL,
+            isset($data['source_listing_id']) ? (int) $data['source_listing_id'] : null,
             $now,
             $now,
         ]);
@@ -204,7 +205,7 @@ class listing_model
         $stmt->execute([
             $status,
             $rejectionReason,
-            ($status === 'active') ? $now : NULL,
+            ($status === 'active') ? $now : null,
             $approvedBy,
             $now,
             $id,

@@ -49,36 +49,7 @@ $emptyCopy = [
 
 $copy = $emptyCopy[$tab] ?? $emptyCopy['active'];
 
-function actionButtons(array $row, string $tab, string $csrfToken): void {
-    $id = (int) ($row['id'] ?? 0);
-    $status = (string) ($row['status'] ?? '');
-    $reviewFlag = !empty($row['review_flag']);
-    ?>
-    <div class="d-flex gap-2 align-items-center">
-    <?php if (in_array($status, ['active', 'pending', 'draft', 'rejected'], true)) : ?>
-    <a href="/listings/<?= $id ?>/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
-    <?php endif; ?>
-    <?php if (in_array($status, ['active', 'pending', 'rejected'], true)) : ?>
-    <form method="POST" action="/listings/<?= $id ?>/delete" class="d-inline" onsubmit="return confirm('Remove this listing?');">
-    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
-    </form>
-    <?php endif; ?>
-    <?php if ($status === 'sold') : ?>
-    <form method="POST" action="/listings/<?= $id ?>/relist" class="d-inline">
-    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-    <button type="submit" class="btn btn-primary btn-sm">Relist</button>
-    </form>
-    <?php endif; ?>
-    <?php if ($status === 'draft') : ?>
-    <form method="POST" action="/listings/<?= $id ?>/submit" class="d-inline">
-    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-    <button type="submit" class="btn btn-primary btn-sm">Submit</button>
-    </form>
-    <?php endif; ?>
-    </div>
-    <?php
-}
+// Per-state action buttons are rendered inline below.
 ?>
 <section class="container py-4 my-listings-shell">
 <h1 class="headline-md mb-4">My listings</h1>
@@ -86,32 +57,59 @@ function actionButtons(array $row, string $tab, string $csrfToken): void {
 <?= \App\Support\View::partial('seller_dashboard_tabs', ['tab' => $tab, 'counts' => $counts, 'csrf_token' => $csrfToken]) ?>
 
 <?php if (empty($rows)) : ?>
-<?= \App\Support\View::partial('empty_state', $copy) ?>
+    <?= \App\Support\View::partial('empty_state', $copy) ?>
 <?php else : ?>
 <ul class="list-group my-listings-list">
-<?php foreach ($rows as $row) :
-    $id = (int) ($row['id'] ?? 0);
-    $title = (string) ($row['title'] ?? '');
-    $priceCents = (int) ($row['price_cents'] ?? 0);
-    $priceLkr = number_format($priceCents / 100, 2);
-    $quantity = (int) ($row['quantity'] ?? 1);
-    $quantitySold = (int) ($row['quantity_sold'] ?? 0);
-    $status = (string) ($row['status'] ?? '');
-    $reviewFlag = !empty($row['review_flag']);
-    ?>
+    <?php foreach ($rows as $row) :
+        $id = (int) ($row['id'] ?? 0);
+        $title = (string) ($row['title'] ?? '');
+        $priceCents = (int) ($row['price_cents'] ?? 0);
+        $priceLkr = number_format($priceCents / 100, 2);
+        $quantity = (int) ($row['quantity'] ?? 1);
+        $quantitySold = (int) ($row['quantity_sold'] ?? 0);
+        $status = (string) ($row['status'] ?? '');
+        $reviewFlag = !empty($row['review_flag']);
+        ?>
 <li class="list-group-item d-flex align-items-center gap-3 my-listings-row" data-listing-id="<?= $id ?>">
 <img src="/img/<?= $id ?>/thumb" class="rounded flex-shrink-0" width="64" height="64" alt="">
 <div class="flex-grow-1">
 <h2 class="h5 mb-1"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h2>
 <div class="d-flex gap-3 text-muted small align-items-center flex-wrap">
 <span>LKR <?= htmlspecialchars($priceLkr, ENT_QUOTES, 'UTF-8') ?></span>
-<?= \App\Support\View::partial('listing_status_pill', ['status' => $status, 'review_flag' => $reviewFlag]) ?>
+        <?= \App\Support\View::partial('listing_status_pill', ['status' => $status, 'review_flag' => $reviewFlag]) ?>
 <span><?= $quantitySold ?> / <?= $quantity ?> sold</span>
 </div>
 </div>
-<?php actionButtons($row, $tab, $csrfToken); ?>
+        <?php
+        $__row = $row;
+        $__status = (string) ($__row['status'] ?? '');
+        $__id = (int) ($__row['id'] ?? 0);
+        ?>
+<div class="d-flex gap-2 align-items-center">
+        <?php if (in_array($__status, ['active', 'pending', 'draft', 'rejected'], true)) : ?>
+<a href="/listings/<?= $__id ?>/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+        <?php endif; ?>
+        <?php if (in_array($__status, ['active', 'pending', 'rejected'], true)) : ?>
+<form method="POST" action="/listings/<?= $__id ?>/delete" class="d-inline" onsubmit="return confirm('Remove this listing?');">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+<button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+</form>
+        <?php endif; ?>
+        <?php if ($__status === 'sold') : ?>
+<form method="POST" action="/listings/<?= $__id ?>/relist" class="d-inline">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+<button type="submit" class="btn btn-primary btn-sm">Relist</button>
+</form>
+        <?php endif; ?>
+        <?php if ($__status === 'draft') : ?>
+<form method="POST" action="/listings/<?= $__id ?>/submit" class="d-inline">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+<button type="submit" class="btn btn-primary btn-sm">Submit</button>
+</form>
+        <?php endif; ?>
+</div>
 </li>
-<?php endforeach; ?>
+    <?php endforeach; ?>
 </ul>
 <?php endif; ?>
 </section>

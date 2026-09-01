@@ -35,7 +35,7 @@ $labels = [
    role="tab"
    aria-current="<?= $isActive ? 'page' : 'false' ?>"
    data-tab="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>">
-<?= htmlspecialchars($labels[$key], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars($labels[$key], ENT_QUOTES, 'UTF-8') ?>
 <span class="text-muted ms-1">(<?= $count ?>)</span>
 </a>
 <?php endforeach; ?>

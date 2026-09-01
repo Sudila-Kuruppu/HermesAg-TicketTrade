@@ -25,12 +25,12 @@ $ctaHref = (string) ($__vars['cta_href'] ?? '');
 </h2>
 <?php if ($body !== '') : ?>
 <p class="text-on-surface-variant empty-state-body">
-<?= htmlspecialchars($body, ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars($body, ENT_QUOTES, 'UTF-8') ?>
 </p>
 <?php endif; ?>
 <?php if ($ctaLabel !== '' && $ctaHref !== '') : ?>
 <a class="btn btn-primary empty-state-cta" href="<?= htmlspecialchars($ctaHref, ENT_QUOTES, 'UTF-8') ?>">
-<?= htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8') ?>
 </a>
 <?php endif; ?>
 </div>

@@ -38,7 +38,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
 
 <?php if ($topError !== '') : ?>
 <div class="alert alert-danger" role="alert" aria-live="polite">
-<?= htmlspecialchars($topError, ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars($topError, ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 
@@ -46,9 +46,9 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
 <div class="alert alert-warning" role="alert" aria-live="polite">
 <p class="mb-1"><strong>Some images failed to upload:</strong></p>
 <ul class="mb-0">
-<?php foreach ($uploadErrors as $ue) : ?>
+    <?php foreach ($uploadErrors as $ue) : ?>
 <li><?= htmlspecialchars((string) ($ue['message'] ?? 'upload error'), ENT_QUOTES, 'UTF-8') ?></li>
-<?php endforeach; ?>
+    <?php endforeach; ?>
 </ul>
 </div>
 <?php endif; ?>
@@ -64,7 +64,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
        value="<?= $val('title') ?>" required>
 <?php if ($hasError('title')) : ?>
 <div id="title-err" class="invalid-feedback">
-<?= htmlspecialchars((string) $errors['title'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['title'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -76,7 +76,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
           aria-describedby="description-err" required><?= $val('description') ?></textarea>
 <?php if ($hasError('description')) : ?>
 <div id="description-err" class="invalid-feedback">
-<?= htmlspecialchars((string) $errors['description'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['description'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -93,7 +93,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
 <input type="hidden" name="price_cents" value="<?= $val('price_cents') ?>">
 <?php if ($hasError('price_cents')) : ?>
 <div id="price-err" class="invalid-feedback">
-<?= htmlspecialchars((string) $errors['price_cents'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['price_cents'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -113,7 +113,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
 </select>
 <?php if ($hasError('category_id')) : ?>
 <div id="category-err" class="invalid-feedback">
-<?= htmlspecialchars((string) $errors['category_id'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['category_id'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -134,7 +134,7 @@ $val = static fn(string $k, $d = '') => htmlspecialchars((string) ($values[$k] ?
 </div>
 <?php if ($hasError('type')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['type'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['type'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </fieldset>
@@ -155,7 +155,7 @@ foreach ($conditions as $k => $label) :
 </select>
 <?php if ($hasError('condition')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['condition'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['condition'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -167,7 +167,7 @@ foreach ($conditions as $k => $label) :
        value="<?= $val('duration_minutes') ?>">
 <?php if ($hasError('duration_minutes')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['duration_minutes'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['duration_minutes'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -188,7 +188,7 @@ foreach ($dm as $k => $label) :
 </select>
 <?php if ($hasError('delivery_method')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['delivery_method'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['delivery_method'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -199,7 +199,7 @@ foreach ($dm as $k => $label) :
         class="form-control <?= $hasError('availability') ? 'is-invalid' : '' ?>"><?= $val('availability') ?></textarea>
 <?php if ($hasError('availability')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['availability'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['availability'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -212,7 +212,7 @@ foreach ($dm as $k => $label) :
        value="<?= $val('quantity', '1') ?>" required>
 <?php if ($hasError('quantity')) : ?>
 <div id="quantity-err" class="invalid-feedback">
-<?= htmlspecialchars((string) $errors['quantity'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['quantity'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>
@@ -224,7 +224,7 @@ foreach ($dm as $k => $label) :
 <small class="text-muted">Up to 8 images, max 5MB each, formats: JPG, PNG, WebP</small>
 <?php if ($hasError('images')) : ?>
 <div class="invalid-feedback d-block">
-<?= htmlspecialchars((string) $errors['images'], ENT_QUOTES, 'UTF-8') ?>
+    <?= htmlspecialchars((string) $errors['images'], ENT_QUOTES, 'UTF-8') ?>
 </div>
 <?php endif; ?>
 </div>

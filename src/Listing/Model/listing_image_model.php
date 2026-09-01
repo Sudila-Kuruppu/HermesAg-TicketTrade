@@ -1,4 +1,5 @@
 <?php
+
 /**
  * TicketTrade — Listing\Model\listing_image_model
  *
