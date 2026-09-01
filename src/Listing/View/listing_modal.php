@@ -60,7 +60,7 @@ $prevId = $__vars['prev_id'] ?? null;
                     $carouselImages[] = $img;
                 }
             }
-        ?>
+            ?>
           <div class="listing-modal__carousel-wrap" data-listing-id="<?= (int) $firstListing['id'] ?>">
             <?= \App\Support\View::partial('listing_modal_carousel', [
                 'listing_id' => (int) $firstListing['id'],

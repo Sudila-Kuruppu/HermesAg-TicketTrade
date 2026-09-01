@@ -88,48 +88,48 @@ if ($firstListing !== null) {
   ]) ?>
 
   <?php if (empty($rows)) : ?>
-    <?php
-      if ($hasFilters) {
-          $title = 'No matches';
-          $body = 'No matches for "' . ($q ?? '') . '" in ' . $activeCatName;
-      } else {
-          $title = 'No listings yet - check back soon';
-          $body = 'New listings appear here within 24 hours of submission';
-      }
-    ?>
+        <?php
+        if ($hasFilters) {
+            $title = 'No matches';
+            $body = 'No matches for "' . ($q ?? '') . '" in ' . $activeCatName;
+        } else {
+            $title = 'No listings yet - check back soon';
+            $body = 'New listings appear here within 24 hours of submission';
+        }
+        ?>
     <div data-list-view-empty>
-      <?= \App\Support\View::partial('empty_state', ['title' => $title, 'body' => $body, 'cta_label' => null]) ?>
+        <?= \App\Support\View::partial('empty_state', ['title' => $title, 'body' => $body, 'cta_label' => null]) ?>
     </div>
   <?php else : ?>
     <div class="corkboard row g-3" data-component="corkboard" role="list" aria-label="Active listings">
       <?php foreach ($rows as $row) :
-          $id = (int) ($row['id'] ?? 0);
-          $rotation = ($id > 0) ? (crc32((string) $id) % 5) - 2 : 0;
-          $pinClass = ($id % 2 === 0) ? 'pin-red' : 'pin-blue';
-          $titleAttr = (string) ($row['title'] ?? '');
-          $ctaHref = $isGuest
+            $id = (int) ($row['id'] ?? 0);
+            $rotation = ($id > 0) ? (crc32((string) $id) % 5) - 2 : 0;
+            $pinClass = ($id % 2 === 0) ? 'pin-red' : 'pin-blue';
+            $titleAttr = (string) ($row['title'] ?? '');
+            $ctaHref = $isGuest
               ? '/login?next=/board'
               : '/listings/' . $id . '#buy';
-          $ctaLabel = $isGuest ? 'Sign in to buy' : 'Buy now';
-      ?>
+            $ctaLabel = $isGuest ? 'Sign in to buy' : 'Buy now';
+            ?>
         <div class="col-12 col-sm-6 col-md-4 col-lg-3 cork-cell" role="listitem"
              data-listing-id="<?= (int) $id ?>"
              style="transform: rotate(<?= (int) $rotation ?>deg);"
              aria-hidden="true">
           <div class="cork-cell__pin <?= htmlspecialchars($pinClass, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></div>
-          <?php if ($isGuest) : ?>
+            <?php if ($isGuest) : ?>
           <a href="<?= htmlspecialchars('/login?next=/board', ENT_QUOTES, 'UTF-8') ?>"
              class="listing-card-cork-link"
              data-listing-id="<?= (int) $id ?>"
              aria-label="Open listing: <?= htmlspecialchars($titleAttr, ENT_QUOTES, 'UTF-8') ?>">
-          <?php else : ?>
+            <?php else : ?>
           <a href="#listing-<?= (int) $id ?>"
              class="listing-card-cork-link"
              data-bs-toggle="modal"
              data-bs-target="#listingModal"
              data-listing-id="<?= (int) $id ?>"
              aria-label="Open listing: <?= htmlspecialchars($titleAttr, ENT_QUOTES, 'UTF-8') ?>">
-          <?php endif; ?>
+            <?php endif; ?>
             <?= \App\Support\View::partial('listing_card_cork', [
                 'listing' => $row,
                 'is_guest' => $isGuest,
@@ -143,13 +143,13 @@ if ($firstListing !== null) {
     </div>
     <div class="list-grid row g-3 d-none" data-component="list-grid" role="list" aria-label="Active listings (list view)">
       <?php foreach ($rows as $row) :
-          $id = (int) ($row['id'] ?? 0);
-          $titleAttr = (string) ($row['title'] ?? '');
-          $ctaHref = $isGuest
+            $id = (int) ($row['id'] ?? 0);
+            $titleAttr = (string) ($row['title'] ?? '');
+            $ctaHref = $isGuest
               ? '/login?next=/board'
               : '/listings/' . $id . '#buy';
-          $ctaLabel = $isGuest ? 'Sign in to buy' : 'Buy now';
-      ?>
+            $ctaLabel = $isGuest ? 'Sign in to buy' : 'Buy now';
+            ?>
         <div class="col-12 col-sm-6 col-md-4 col-lg-3" role="listitem" data-listing-id="<?= (int) $id ?>">
           <a href="#listing-<?= (int) $id ?>"
              class="text-decoration-none text-reset"
@@ -175,11 +175,11 @@ if ($firstListing !== null) {
   ]) ?>
 
   <?php if (!empty($rows)) :
-      $GLOBALS['_tt_view_vars'] = [
+        $GLOBALS['_tt_view_vars'] = [
           'first_listing' => $firstListingWithImages ?? $firstListing,
           'prev_id' => $prevId,
           'next_id' => $nextId,
-      ];
-      require __DIR__ . '/listing_modal.php';
+        ];
+        require __DIR__ . '/listing_modal.php';
   endif; ?>
 </section>

@@ -338,5 +338,4 @@ class listing_model
         $row = $stmt->fetch();
         return $row === false ? null : (int) $row['id'];
     }
-
 }

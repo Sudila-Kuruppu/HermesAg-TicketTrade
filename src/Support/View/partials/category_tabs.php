@@ -40,7 +40,7 @@ $buildHref = function (?int $catId) use ($q): string {
         $cid = (int) ($c['id'] ?? 0);
         $cname = (string) ($c['name'] ?? '');
         $isActive = ($cat === $cid);
-    ?>
+        ?>
       <a class="nav-link category-tab <?= $isActive ? 'active' : '' ?>"
          href="<?= htmlspecialchars($buildHref($cid), ENT_QUOTES, 'UTF-8') ?>"
          aria-current="<?= $isActive ? 'page' : 'false' ?>"><?= htmlspecialchars($cname, ENT_QUOTES, 'UTF-8') ?></a>

@@ -48,9 +48,9 @@ $count = is_array($images) ? count($images) : 0;
     <?php endif; ?>
     <div class="carousel-inner">
       <?php foreach ($images as $idx => $img) :
-          $sha = (string) ($img['sha256'] ?? '');
-          $isFirst = ($idx === 0);
-      ?>
+            $sha = (string) ($img['sha256'] ?? '');
+            $isFirst = ($idx === 0);
+            ?>
         <div class="carousel-item <?= $isFirst ? 'active' : '' ?>">
           <img src="/img/<?= (int) $listingId ?>/full"
                class="d-block w-100 listing-modal__img"
