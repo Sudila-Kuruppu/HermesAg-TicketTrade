@@ -442,6 +442,16 @@ class listing_service
     }
 
     /**
+     * Load a listing for the owner; returns the AD-16 envelope with
+     * `data` = the row OR an error envelope (E_LISTING_NOT_FOUND /
+     * E_LISTING_FORBIDDEN). Public so Actions can render 404 cleanly.
+     */
+    public static function loadForOwner(int $listingId, int $sellerId): array
+    {
+        return self::loadForEdit($listingId, $sellerId);
+    }
+
+    /**
      * Internal helper. Loads a listing for edit by the owner; returns the
      * AD-16 failure envelope on error.
      */
