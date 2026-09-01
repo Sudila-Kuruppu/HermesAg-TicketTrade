@@ -26,5 +26,6 @@ return [
     'E_IMAGE_TOO_LARGE'     => 'Image exceeds the 5MB size limit.',
     'E_LISTING_NOT_FOUND'   => 'Listing not found.',
     'E_LISTING_FORBIDDEN'   => 'You do not have permission to modify this listing.',
+    'E_LISTING_REVIEW_FLAG' => 'Edits to active listings are pending admin review.',
     'E_CATEGORY_NOT_FOUND'  => 'Category not found.',
 ];
