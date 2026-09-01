@@ -101,6 +101,72 @@ class Auth
     }
 
     /**
+     * Require a fresh re-auth within the last $seconds.
+     *
+     * Pragmatic implementation for Phase 3 (cron auto-approve):
+     * the full admin_reauth table + re-auth modal is Phase 8 (AD-19).
+     * Here, "fresh" is proxied by sessions.last_seen: any authenticated
+     * action within the window counts as a re-auth. The admin must
+     * therefore have done SOMETHING (loaded a page, hit a button, etc.)
+     * within the last $seconds — which matches AD-19's intent at
+     * 1/3 the fidelity.
+     *
+     * Returns the current user row on success. On failure: emits a 403
+     * JSON envelope {ok:false, error:"re-auth required"} and exits.
+     *
+     * @return array The current user row (matches currentUser() shape).
+     */
+    public static function requireReAuth(int $seconds): array
+    {
+        $u = $GLOBALS['current_user'] ?? null;
+        if ($u === null || empty($u['is_admin'])) {
+            // Defensive: adminGuard should already have run, but never 0-out an admin.
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'ok' => false,
+                'error' => 're-auth required',
+            ]);
+            exit;
+        }
+        $sid = $_COOKIE[session_name()] ?? '';
+        if ($sid === '') {
+            self::emitReAuthRequired();
+        }
+        try {
+            $stmt = Db::pdo()->prepare('SELECT last_seen FROM sessions WHERE session_id = ? LIMIT 1');
+            $stmt->execute([$sid]);
+            $row = $stmt->fetch();
+        } catch (\Throwable $e) {
+            // Sessions table missing? treat as stale.
+            $row = false;
+        }
+        if ($row === false) {
+            self::emitReAuthRequired();
+        }
+        $lastSeenTs = strtotime((string) $row['last_seen']);
+        if ($lastSeenTs === false || $lastSeenTs < time() - $seconds) {
+            self::emitReAuthRequired();
+        }
+        return $u;
+    }
+
+    /**
+     * Internal: emit the 403 JSON envelope and exit. requireReAuth uses
+     * this on stale-or-missing re-auth state.
+     */
+    private static function emitReAuthRequired(): void
+    {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok' => false,
+            'error' => 're-auth required',
+        ]);
+        exit;
+    }
+
+    /**
      * The current authenticated user row, or null for guests.
      */
     public static function currentUser(): ?array
