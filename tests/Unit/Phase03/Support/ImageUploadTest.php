@@ -61,7 +61,12 @@ class ImageUploadTest extends TestCase
         if (!function_exists('imagecreatetruecolor')) {
             $this->markTestSkipped('GD not available.');
         }
-        // Use the real test DB and the real storage root from config.
+        // Use /tmp as storage_root via UPLOAD_STORAGE_ROOT env var
+        // (the project uploads dir may be on a full filesystem).
+        $tmpRoot = sys_get_temp_dir() . '/tt-img-' . bin2hex(random_bytes(4));
+        @mkdir($tmpRoot, 0775, true);
+        putenv('UPLOAD_STORAGE_ROOT=' . $tmpRoot);
+
         $jpg = $this->makeJpeg(120, 80);
         $file = [
             'name' => 'real.jpg',
@@ -71,27 +76,21 @@ class ImageUploadTest extends TestCase
             'type' => 'image/jpeg',
         ];
 
-        $cfg = require APP_ROOT . '/config/uploads.php';
-        $storage = (string) $cfg['storage_root'];
-        // The real storage_root is shared; capture files we write so we
-        // can clean them up.
-        $shaBefore = file_exists($storage) ? scandir($storage) : [];
-
         $result = ImageUpload::process(999999, [$file]);
         $this->assertTrue($result['ok']);
         $this->assertNotEmpty($result['data']['uploaded']);
         $first = $result['data']['uploaded'][0];
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $first['sha256']);
 
-        // Verify 3 WebP files exist at the storage root.
+        // Verify 3 WebP files exist at /tmp.
         foreach (['thumb', 'medium', 'full'] as $sz) {
-            $path = sprintf('%s/%s_%s.webp', $storage, $first['sha256'], $sz);
+            $path = sprintf('%s/%s_%s.webp', $tmpRoot, $first['sha256'], $sz);
             $this->assertFileExists($path, "Expected {$path}");
         }
 
         // Clean up.
         foreach (['thumb', 'medium', 'full'] as $sz) {
-            @unlink(sprintf('%s/%s_%s.webp', $storage, $first['sha256'], $sz));
+            @unlink(sprintf('%s/%s_%s.webp', $tmpRoot, $first['sha256'], $sz));
         }
     }
 
@@ -161,9 +160,11 @@ class ImageUploadTest extends TestCase
                 'type' => 'image/jpeg',
             ];
         }
+        $tmpRoot = sys_get_temp_dir() . '/tt-img-cap-' . bin2hex(random_bytes(4));
+        @mkdir($tmpRoot, 0775, true);
+        putenv('UPLOAD_STORAGE_ROOT=' . $tmpRoot);
         $cfg = require APP_ROOT . '/config/uploads.php';
         $storage = (string) $cfg['storage_root'];
-        $shasBefore = file_exists($storage) ? scandir($storage) : [];
 
         $result = ImageUpload::process(999998, $files);
         $this->assertTrue($result['ok']);

@@ -9,6 +9,8 @@
  *
  * The shape is fixed by AD-14. Support\ImageUpload reads this once
  * at boot. The APP_ENV env var swaps dev/prod; default is dev.
+ * UPLOAD_STORAGE_ROOT (env var) overrides storage_root for tests +
+ * custom deployments.
  *
  * thumb/medium/full px are the canonical 3 sizes (D-13). webp_quality=80
  * matches the NFR-PER-003 contract. max_files=8 is the per-listing cap
@@ -18,9 +20,12 @@
 declare(strict_types=1);
 
 $isProd = getenv('APP_ENV') === 'production';
+$envRoot = getenv('UPLOAD_STORAGE_ROOT');
 
 return [
-    'storage_root'   => $isProd ? '/var/www/uploads/listings' : __DIR__ . '/../public/uploads/listings',
+    'storage_root'   => $envRoot !== false && $envRoot !== ''
+        ? $envRoot
+        : ($isProd ? '/var/www/uploads/listings' : __DIR__ . '/../public/uploads/listings'),
     'thumb_px'       => 200,
     'medium_px'      => 600,
     'full_px'        => 1200,

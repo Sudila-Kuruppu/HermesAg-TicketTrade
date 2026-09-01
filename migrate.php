@@ -111,8 +111,10 @@ foreach ($pending as $file) {
         foreach ($statements as $stmt) {
             $pdo->exec($stmt);
         }
-        // Append to .applied atomically (tempnam + rename).
-        $tmp = tempnam($migrationsDir, '.applied-');
+        // Append to .applied atomically (tempnam + rename). Use /tmp
+        // for the temp file so the migrate runner works on hosts where
+        // the project directory is on a constrained filesystem.
+        $tmp = tempnam(sys_get_temp_dir(), '.applied-');
         if ($tmp === false) {
             throw new \RuntimeException('tempnam failed');
         }

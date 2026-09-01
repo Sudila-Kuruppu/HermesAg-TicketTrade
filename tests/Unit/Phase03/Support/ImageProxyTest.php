@@ -51,6 +51,11 @@ class ImageProxyTest extends TestCase
     {
         parent::setUp();
         $this->skipIfNoDb();
+        // Override storage_root to /tmp (project uploads dir may be on a
+        // full filesystem).
+        $tmpRoot = sys_get_temp_dir() . '/tt-proxy-' . bin2hex(random_bytes(4));
+        @mkdir($tmpRoot, 0775, true);
+        putenv('UPLOAD_STORAGE_ROOT=' . $tmpRoot);
         // Clear any existing rate-limit state for this IP/user.
         $pdo = \App\Support\Db::pdo();
         $pdo->exec('TRUNCATE TABLE cache_rate');
