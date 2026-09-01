@@ -113,10 +113,10 @@ Plans:
 
 Plans:
 
-- [ ] 03-01: Listings Support primitives + image pipeline — `Support\ImageUpload` (4-layer validation, WebP re-encode, thumbnail generation), `Support\ImageProxy` (auth-checked serving), `Listing/Service`, `Listing/Model`, migrations 002 (listings, listing_images), 003 (categories)
-- [ ] 03-02: Listing CRUD Actions + state machine — `/listings/create`, `/listings/{id}/edit`, `/listings/{id}/delete`, draft/save flow, approved-content fast-track, `review_flag` for active edits, seller's dashboard tabs (Active/Pending/Sold/Draft)
-- [ ] 03-03: Board view + listing modal — `/board` (corkboard + plain-grid list-view toggle, category tabs, FULLTEXT search, pagination, guest browse), listing modal (carousel, Next/Previous, keyboard nav, focus trap)
-- [ ] 03-04: Landing page + hand-triggered 24h auto-approve Action — `/` landing (hero, Vision/Mission, How It Works, Team, Footer), `POST /admin/cron/ticket-expiry` Action (admin-only re-auth) implementing the 24h sweep alongside the future expiry job
+- [x] 03-01: Listings Support primitives + image pipeline — `Support\ImageUpload` (4-layer validation, WebP re-encode, thumbnail generation), `Support\ImageProxy` (auth-checked serving), `Listing/Service`, `Listing/Model`, migrations 002 (listings, listing_images), 003 (categories)
+- [x] 03-02: Listing CRUD Actions + state machine — `/listings/create`, `/listings/{id}/edit`, `/listings/{id}/delete`, draft/save flow, approved-content fast-track, `review_flag` for active edits, seller's dashboard tabs (Active/Pending/Sold/Draft)
+- [x] 03-03: Board view + listing modal — `/board` (corkboard + plain-grid list-view toggle, category tabs, FULLTEXT search, pagination, guest browse), listing modal (carousel, Next/Previous, keyboard nav, focus trap)
+- [x] 03-04: Landing page + hand-triggered 24h auto-approve Action — `/` landing (hero, Vision/Mission, How It Works, Team, Footer), `POST /admin/cron/ticket-expiry` Action (admin-only re-auth) implementing the 24h sweep alongside the future expiry job
 
 ---
 
