@@ -256,7 +256,7 @@ abstract class Fixtures extends TestCase
     protected function seedTicket(array $overrides = []): int
     {
         $defaults = [
-            'ticket_code' => 'TK-' . strtoupper(bin2hex(random_bytes(12))),
+            'ticket_code' => \App\Ticket\Model\ticket_model::formatCode(random_bytes(16)),
             'listing_id' => 1,
             'buyer_id' => 2,
             'seller_id' => 1,
@@ -335,15 +335,17 @@ abstract class Fixtures extends TestCase
         string $actionClass,
         string $methodName,
         int $userId,
-        array $pathParams = []
+        array $pathParams = [],
+        array $postVars = []
     ): array {
         if (!function_exists('pcntl_fork')) {
             $this->markTestSkipped('pcntl_fork not available');
         }
         $this->startSessionFor($userId);
         $GLOBALS['_tt_path_params'] = $pathParams;
-        // Reset POST so each test starts clean.
-        $_POST = [];
+        // Reset POST so each test starts clean. Tests can pass
+        // $postVars to inject $_POST content for the child.
+        $_POST = $postVars;
 
         $capturePath = tempnam(sys_get_temp_dir(), 'action-');
         @unlink($capturePath);
