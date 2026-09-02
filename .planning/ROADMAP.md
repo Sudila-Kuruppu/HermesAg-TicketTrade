@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: UX Foundation & Design System** — Tokens, theme, a11y floor, toast container, bottom nav, mockup-driven surfaces (completed 2026-08-30)
 - [x] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives (completed 2026-09-01)
 - [x] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot (completed 2026-09-01)
-- [ ] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
+- [x] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
 - [ ] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count
 - [ ] **Phase 6: Points, Ranks & Leaderboards** — Points engine, 6-tier ladder, daily leaderboards, anti-farming rules
 - [ ] **Phase 7: Reports, Disputes & Moderation Workflow** — User reports, admin queue, destructive actions with re-auth
@@ -155,7 +155,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03: cron Action extension + ticket-expiry + 3-day dispute auto-dismiss — `POST /admin/cron/ticket-expiry` runs the three sweeps in order: 24h listing auto-approve (kept), 3-day dispute auto-dismiss, 7-day ticket expiry. Hand-triggered in Phase 4; scheduled in Phase 9.
+- [x] 04-03: cron Action extension + ticket-expiry + 3-day dispute auto-dismiss — `POST /admin/cron/ticket-expiry` runs the three sweeps in order per D-07: 24h listing auto-approve (kept), 3-day dispute auto-dismiss, 7-day ticket expiry. New `App\Admin\Action\CronAction` with three sweep methods + dispatcher; `Ticket\Service\ticket_service::runTicketExpirySweep + runDisputeAutoDismissSweep` + private `writeCronLog`; `Ticket\Model\ticket_model::findExpiringTickets + findStaleDisputes + decrementListingStockForExpiredTicket`; old `ListingAutoApproveAction` becomes a deprecation shim; route entry updated. 5 new test files (CronSweep, Idempotency, DisputeAutoDismiss, TicketExpiry, Performance) — 14 tests, 105 assertions. Performance: 10k tickets < 30s (locally ~15s). Hand-triggered in Phase 4; scheduled in Phase 9. COMPLETE 2026-09-02.
 
 ---
 

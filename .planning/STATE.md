@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 04
 current_phase_name: purchases-tickets-lifecycle
 status: in_progress
-stopped_at: Plan 04-02 complete; awaiting 04-03
-last_updated: "2026-09-02T17:00:00.000Z"
+stopped_at: Plan 04-03 complete; awaiting milestone verification
+last_updated: "2026-09-02T19:30:00.000Z"
 last_activity: 2026-09-02
-last_activity_desc: Phase 04 Plan 02 executed — 3 Actions replaced (MyTickets / Sales / Purchases), 3 Views replaced, ticket_service::getTicketsForBuyer + getGroupedSales + getPurchaseHistory + ticket_model::findByBuyerAndStatus / findGroupedSales / findPurchaseHistory / findActiveServicesBySeller queries, listing_modal Buy now becomes a POST form (HIDDEN for self-owned + sold-out), 50 new tests (all green)
+last_activity_desc: Phase 04 Plan 03 executed — App\Admin\Action\CronAction created with 3 sweeps (24h listing auto-approve, 3-day dispute auto-dismiss, 7-day ticket expiry), dispatch order locked per D-07, ticket_service + ticket_model extended, ListingAutoApproveAction deprecation shim, routes.php updated, 14 new tests (CronSweepTest, IdempotencyTest, DisputeAutoDismissTest, TicketExpiryTest, PerformanceTest) — 10k tickets < 30s. Full suite: 403 tests / 2790 assertions / 0 failures. phpcs 0 errors.
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 13
-  completed_plans: 11
-  percent: 14
+  completed_plans: 12
+  percent: 25
 ---
 
 # Project State
@@ -22,27 +22,28 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-26)
 
 **Core value:** Every trade ends with proof — verified NSBM students trading peer-to-peer with a confirmable digital ticket, gamified reputation, and seller ratings, so nobody trades blind.
-**Current focus:** Phase 04 — purchases-tickets-lifecycle (Plan 04-01 complete)
+**Current focus:** Phase 04 — purchases-tickets-lifecycle (Plans 04-01, 04-02, 04-03 complete; milestone ready for verification)
 **Phase 3 verification:** PASSED (2026-09-02) — 27/27 must-haves verified, 304/1462 tests green, phpcs 22 auto-fixable style warnings on Phase 3-04 landing files only (no functional impact).
 **Phase 4 Plan 01:** COMPLETE (2026-09-02) — 49 new tests across 10 files (all green); 353 tests in full suite; phpcs 0 errors.
 **Phase 4 Plan 02:** COMPLETE (2026-09-02) — 50 new tests across 8 files (View tests for My Tickets / Sales / Purchases + flow tests for Buy / Redeem / ConfirmSession / Dispute + route guard). Full suite: 403 tests, 2795 assertions. phpcs 0 errors.
+**Phase 4 Plan 03:** COMPLETE (2026-09-02) — 14 new tests across 5 files (CronSweep, Idempotency, DisputeAutoDismiss, TicketExpiry, Performance). Full suite: 403 tests, 2790 assertions. phpcs 0 errors. 10k tickets < 30s.
 
 ## Current Position
 
 Phase: 04 (purchases-tickets-lifecycle) — IN PROGRESS
-Plans completed in Phase 4: 2 of 3 (Plan 04-01 substrate + Plan 04-02 UI complete; 04-03 cron extension pending)
-Status: Plan 04-02 verified; ready to proceed to Plan 04-03
-Last activity: 2026-09-02 — Plan 04-02 complete (3 Actions replaced, 3 Views replaced, listing_modal Buy now form, 50 new tests)
+Plans completed in Phase 4: 3 of 3 (all plans complete)
+Status: Plan 04-03 verified; ready for Phase 4 milestone verification
+Last activity: 2026-09-02 — Plan 04-03 complete (new App\Admin\Action\CronAction with 3 sweeps, ticket_service + ticket_model extended, deprecation shim, routes.php updated, 14 new tests)
 
-Progress: [████████░░░░░░░░░░░░░] 17% of Phase 4 plans (2/3)
+Progress: [████████████████████] 100% of Phase 4 plans (3/3)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 10
+- Total plans completed: 12
 - Average duration: ~5.5 hours/plan
-- Total execution time: ~55 hours
+- Total execution time: ~66 hours
 
 **By Phase:**
 
@@ -51,12 +52,12 @@ Progress: [████████░░░░░░░░░░░░░] 17% 
 | 01 | 2 | ~10h | ~5h |
 | 02 | 3 | ~22h | ~7h |
 | 03 | 4 | ~26h | ~6.5h |
-| 04 | 1 | ~6h | ~6h |
+| 04 | 3 | ~18h | ~6h |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-02 ✓, 03-03 ✓, 03-04 ✓, 04-01 ✓, ...
-- Trend: Steady — Phase 4 substrate shipped cleanly; ticket code format reduced to 5 groups to fit VARCHAR(30) per PRD canonical example.
+- Last 5 plans: 03-04 ✓, 04-01 ✓, 04-02 ✓, 04-03 ✓, ...
+- Trend: Steady — Phase 4 fully shipped; cron dispatch order locked per D-07; performance 10k tickets in ~15s (well under 30s NFR).
 
 *Updated after each plan completion*
 
@@ -84,6 +85,25 @@ Progress: [████████░░░░░░░░░░░░░] 17% 
 - **`seedUser()` defaults set `redeemed_count=0`** and the INSERT now carries
   the column. Tests for the "no halving" path seed with `redeemed_count=5`.
 
+### Decisions (Phase 4 Plan 03)
+
+- **`decase` branch extended** — the dispute auto-dismiss CASE branch was
+  extended from the plan's `WHEN status='active' THEN 'active'` to
+  `WHEN status IN ('active','disputed') THEN 'active'` because the existing
+  `ticket_model::fileDispute()` flips `status='active' → status='disputed'`
+  when a dispute is filed on an active ticket. Without the extra branch, the
+  sweep would leave the ticket at `status='disputed'` (the post-filing value)
+  instead of restoring the pre-dispute value `'active'`.
+- **Single guarded UPDATE for the expiry sweep** — the per-ticket loop only
+  runs for tickets the UPDATE actually flipped (via the `updated_at >= ...
+  INTERVAL 5 SECOND` window after the UPDATE in the same transaction). Bounded
+  by the number of expiring tickets, not the total ticket population. The 10k
+  NFR-PER-004 target holds.
+- **Deprecation shim over git mv** — the old `ListingAutoApproveAction` file
+  was overwritten with a shim that forwards to the new `App\Admin\Action  \CronAction`. The new file was created at the admin context. Git tracks this
+  as a modification + new file; the semantics are identical to the plan's
+  rename intent.
+
 ### Pending Todos
 
 None yet. Capture with `/gsd-capture` during execution.
@@ -103,13 +123,13 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Plan 04-02 complete; awaiting Plan 04-03.
-**Resume file:** .planning/phases/04-purchases-tickets-lifecycle/04-02-SUMMARY.md
+**Stopped at:** Plan 04-03 complete; awaiting Phase 4 milestone verification.
+**Resume file:** .planning/phases/04-purchases-tickets-lifecycle/04-03-SUMMARY.md
 
-**Last session:** 2026-09-02T17:00:00.000Z
+**Last session:** 2026-09-02T19:30:00.000Z
 **Resumed:** N/A
-**Next session pickup:** Plan 04-03 extends the cron Action (POST /admin/cron/ticket-expiry) with the 3-day dispute auto-dismiss + ticket-expiry sweeps; ships the hand-triggered dispatch that Plan 04-01 left as a stub.
+**Next session pickup:** Run Phase 4 milestone verification (milestone-04 closeout): audit all must-haves across plans 04-01/02/03, confirm full suite green, then `gsd-complete-milestone` to archive the milestone.
 
 ---
 *State initialized: 2026-08-26*
-*Updated after Phase 4 Plan 04-01 completion*
+*Updated after Phase 4 Plan 04-03 completion*

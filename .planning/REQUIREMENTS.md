@@ -131,7 +131,7 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 - [ ] **PER-01**: Page load < 2s on localhost uncached (NFR-PER-001)
 - [ ] **PER-02**: Board view loads ≤ 50 listings per page (pagination) (NFR-PER-002)
 - [ ] **PER-03**: Image thumbnails generated on upload (3 sizes: 200px, 600px, 1200px, all WebP 80% quality) (NFR-PER-003)
-- [ ] **PER-04**: Cron ticket-expiry completes < 30s for 10k tickets (single guarded UPDATE) (NFR-PER-004)
+- [x] **PER-04**: Cron ticket-expiry completes < 30s for 10k tickets (single guarded UPDATE) (NFR-PER-004) — verified in PerformanceTest.php
 - [ ] **PER-05**: Leaderboard summary-table queries served from indexes over summary tables refreshed daily by cron (NFR-PER-005)
 - [x] **REL-01**: Idempotent ticket redemption (re-redeeming returns current state, not error); correct-code resubmission is idempotent and does NOT consume a rate-limit attempt (NFR-REL-001)
 - [x] **REL-02**: Idempotent cron job within same wall-clock day (re-running produces no duplicate effects); staging replay: `TRUNCATE cron_log; php jobs/ticket_expiry.php` = identical result for ticket expiry (NFR-REL-002)
