@@ -120,13 +120,55 @@ class ModalRenderTest extends Fixtures
 
     public function test_modal_includes_buy_now_cta(): void
     {
+        // Phase 4 Plan 04-02: the listing modal's Buy now is now a
+        // <form method="POST" action="/listings/{id}/buy"> that the
+        // Phase 4 BuyAction handles. The form class is the same
+        // (listing-modal__buy) so the CSS contract is preserved.
         $sellerId = $this->seedUser();
         $catId = $this->seedCategory();
         $lid = $this->seedListing($sellerId, $catId, 'Item');
+        // A different (non-guest) user is needed to see the form;
+        // the seller's own listing shows the self-owned badge instead.
+        $buyerId = $this->seedUser([
+            'email' => 'buyer@students.nsbm.ac.lk',
+            'student_id' => 'NSBM/2023/099',
+            'nickname' => 'buyer',
+        ]);
 
-        $out = $this->renderBoard();
+        $out = $this->renderBoardAsUser($buyerId);
         $this->assertStringContainsString('listing-modal__buy', $out);
-        $this->assertStringContainsString('/listings/' . $lid . '#buy', $out);
+        $this->assertStringContainsString('action="/listings/' . $lid . '/buy"', $out);
+        $this->assertStringContainsString('method="POST"', $out);
+    }
+
+    private function renderBoardAsUser(int $userId): string
+    {
+        $originalGet = $_GET ?? [];
+        $originalUser = $GLOBALS['current_user'] ?? null;
+        $_GET = [];
+        $GLOBALS['current_user'] = $this->loadUserRow($userId);
+        ob_start();
+        try {
+            $action = new \App\Listing\Action\BrowseAction();
+            $action->handle();
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            throw $e;
+        }
+        $out = (string) ob_get_clean();
+        $_GET = $originalGet;
+        $GLOBALS['current_user'] = $originalUser;
+        return $out;
+    }
+
+    private function loadUserRow(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT user_id, email, nickname, is_admin, is_banned, is_verified, tier '
+            . 'FROM users WHERE user_id = ?'
+        );
+        $stmt->execute([$userId]);
+        return (array) $stmt->fetch();
     }
 
     public function test_modal_includes_report_link(): void

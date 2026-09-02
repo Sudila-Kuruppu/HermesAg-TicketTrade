@@ -99,6 +99,8 @@ class GuestBrowseTest extends Fixtures
 
     public function test_logged_in_user_sees_buy_now(): void
     {
+        // Phase 4 Plan 04-02: the Buy now button is a <form> posting to
+        // /listings/{id}/buy (Phase 4 BuyAction).
         $sellerId = $this->seedUser();
         $catId = $this->seedCategory();
         $lid = $this->seedListing($sellerId, $catId, 'Item');
@@ -110,7 +112,7 @@ class GuestBrowseTest extends Fixtures
 
         $out = $this->renderBoardAsUser($buyerId);
         $this->assertStringContainsString('Buy now', $out);
-        $this->assertStringContainsString('/listings/' . $lid . '#buy', $out);
+        $this->assertStringContainsString('action="/listings/' . $lid . '/buy"', $out);
     }
 
     public function test_logged_in_user_card_does_not_link_to_login(): void

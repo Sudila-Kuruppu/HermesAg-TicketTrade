@@ -93,6 +93,9 @@ abstract class Fixtures extends TestCase
     protected function resetTables(): void
     {
         $tables = [
+            'audit_log',
+            'reports',
+            'tickets',
             'cron_log',
             'listing_revisions',
             'listing_images',

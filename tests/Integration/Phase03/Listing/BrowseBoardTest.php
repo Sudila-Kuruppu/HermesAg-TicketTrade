@@ -104,6 +104,8 @@ class BrowseBoardTest extends Fixtures
 
     public function test_logged_in_cta_is_buy_now(): void
     {
+        // Phase 4 Plan 04-02: the modal's Buy now is now a <form>
+        // posting to /listings/{id}/buy (Phase 4 BuyAction).
         $sellerId = $this->seedUser();
         $catId = $this->seedCategory();
         $lid = $this->seedListing($sellerId, $catId, 'Sample listing');
@@ -113,9 +115,8 @@ class BrowseBoardTest extends Fixtures
             'nickname' => 'buyer',
         ]);
         $out = $this->renderBoard(null, $buyerId);
-        // The cork-cell CTA reads "Buy now" with /listings/{id}#buy href
         $this->assertStringContainsString('Buy now', $out);
-        $this->assertStringContainsString('/listings/' . $lid . '#buy', $out);
+        $this->assertStringContainsString('action="/listings/' . $lid . '/buy"', $out);
     }
 
     public function test_pagination_renders_when_more_than_one_page(): void
