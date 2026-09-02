@@ -10,6 +10,10 @@
  *   - admin_cron (5/min/IP) per CONTEXT D-30
  *   - img_thumb (60/min/IP) per CONTEXT D-14 + AD-14 (thumb+medium share)
  *   - img_full (30/min/user) per CONTEXT D-14 + AD-14 (full-size auth-gated)
+ *
+ * Phase 4 ADDS:
+ *   - purchase (10/hr/user) per NFR-SEC-007 (Plan 04-01)
+ *   - redemption (5/hr/(ticket+user)) per NFR-SEC-007 (Plan 04-01)
  */
 
 declare(strict_types=1);
@@ -23,4 +27,6 @@ return [
     'admin_cron' => ['max' => 5, 'window_minutes' => 1],
     'img_thumb' => ['max' => 60, 'window_minutes' => 1],
     'img_full' => ['max' => 30, 'window_minutes' => 1],
+    'purchase' => ['max' => 10, 'window_minutes' => 60],
+    'redemption' => ['max' => 5, 'window_minutes' => 60],
 ];

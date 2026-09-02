@@ -1,0 +1,521 @@
+<?php
+
+/**
+ * TicketTrade — Ticket\Service\ticket_service
+ *
+ * Per AD-1: sole writer of `tickets`. Every public method runs inside
+ * a PDO transaction with try/catch rollback on any Throwable.
+ *
+ * Per AD-7: `quantity_sold` increments ONLY inside createTicket().
+ *   - Products: +1 per ticket.
+ *   - Services: +total_sessions per ticket (the listing.quantity is
+ *     the number of sessions a single buyer purchases at once; the
+ *     service ticket has total_sessions = listing.quantity, and
+ *     quantity_sold increments by that many in one shot).
+ *
+ * Per AD-9: every state-changing ticket operation is a single
+ * `UPDATE tickets SET ... WHERE ...` with `rowCount()===0` as the
+ * invalid branch.
+ *
+ * Per AD-15 + D-03: dispute branch flips `dispute_status='pending'`
+ * and (if old status was 'active') sets `status='disputed'`. A
+ * dispute on a 'redeemed' ticket keeps status='redeemed'.
+ *
+ * Cross-context writes go through Services only (AD-2): createTicket
+ * reads listing via Listing\Service\listing_service::getWithImages()
+ * (read-only), redeemTicket delegates the points to
+ * Points\Service\points_service::awardTransaction(). No Action or
+ * Model writes to `tickets` directly.
+ */
+
+declare(strict_types=1);
+
+namespace App\Ticket\Service;
+
+use App\Listing\Service\listing_service;
+use App\Points\Service\points_service;
+use App\Support\Audit;
+use App\Support\Db;
+use App\Support\Error;
+use App\Ticket\Model\ticket_model;
+use DateInterval;
+use DateTime;
+use DateTimeZone;
+use PDO;
+use Throwable;
+
+class ticket_service
+{
+    /**
+     * 7-day expiry window per FR-TKT-004 + D-07.
+     */
+    public const EXPIRY_DAYS = 7;
+
+    /**
+     * Allowed dispute reasons (D-03). The View renders these in the
+     * dropdown; the Service enforces the same set server-side.
+     */
+    public const DISPUTE_REASONS = [
+        'seller_unresponsive',
+        'item_not_as_described',
+        'buyer_unresponsive',
+        'other',
+    ];
+
+    public const DISPUTE_TEXT_MAX = 200;
+
+    /**
+     * Create a ticket atomically.
+     *
+     * Flow (per AD-9):
+     *   1. SELECT ... FOR UPDATE locks the listing row.
+     *   2. Validate status='active' AND quantity_sold < quantity
+     *      AND seller_id != buyer_id (self-purchase prevention).
+     *   3. Generate a unique dashed ticket code.
+     *   4. INSERT the ticket row (status='active', dispute_status='none',
+     *      session_number=1, total_sessions=listing.quantity for
+     *      services or 1 for products, expires_at=now+7d).
+     *   5. UPDATE listings SET quantity_sold = quantity_sold + N (N=1
+     *      for products, N=total_sessions for services).
+     *   6. Audit::log('ticket.created', ...).
+     *   7. Commit.
+     *
+     * @return array AD-16 failure envelope. On success:
+     *   ['ok'=>true, 'data'=>['ticket_code'=>string, 'ticket_id'=>int, 'listing_id'=>int]]
+     */
+    public static function createTicket(int $listingId, int $buyerId): array
+    {
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            // Lock the listing row.
+            $stmt = $pdo->prepare(
+                'SELECT id, seller_id, status, quantity, quantity_sold, type '
+                . 'FROM listings WHERE id = ? FOR UPDATE'
+            );
+            $stmt->execute([$listingId]);
+            $listing = $stmt->fetch();
+
+            if ($listing === false) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_LISTING_NOT_FOUND',
+                    'message' => 'Listing not found.',
+                ]);
+            }
+            if ((string) $listing['status'] !== 'active') {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_LISTING_NOT_ACTIVE',
+                    'message' => 'This listing is not active.',
+                ]);
+            }
+            if ((int) $listing['seller_id'] === $buyerId) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_SELF_PURCHASE',
+                    'message' => 'You cannot buy your own listing.',
+                ]);
+            }
+            if ((int) $listing['quantity_sold'] >= (int) $listing['quantity']) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_LISTING_SOLD_OUT',
+                    'message' => 'This listing is sold out.',
+                ]);
+            }
+
+            // Compute total_sessions and the inventory increment.
+            $isService = ((string) $listing['type'] === 'service');
+            $totalSessions = $isService ? (int) $listing['quantity'] : 1;
+            $inventoryDelta = $isService ? (int) $listing['quantity'] : 1;
+
+            // Generate a unique dashed ticket code.
+            $code = ticket_model::generateUniqueCode($pdo);
+
+            // Compute expires_at = created_at + 7 days.
+            $now = new DateTime('now', new DateTimeZone('Asia/Colombo'));
+            $expiresAt = (clone $now)->add(new DateInterval('P' . self::EXPIRY_DAYS . 'D'))
+                ->format('Y-m-d H:i:s');
+            $createdAt = $now->format('Y-m-d H:i:s');
+
+            // Read price_cents for the ticket row (snapshot at purchase time).
+            $priceStmt = $pdo->prepare('SELECT price_cents FROM listings WHERE id = ?');
+            $priceStmt->execute([$listingId]);
+            $priceRow = $priceStmt->fetch();
+            $priceCents = (int) ($priceRow['price_cents'] ?? 0);
+
+            $ticketId = ticket_model::insert([
+                'ticket_code' => $code,
+                'listing_id' => $listingId,
+                'buyer_id' => $buyerId,
+                'seller_id' => (int) $listing['seller_id'],
+                'status' => 'active',
+                'dispute_status' => 'none',
+                'price_cents' => $priceCents,
+                'session_number' => 1,
+                'total_sessions' => $totalSessions,
+                'expires_at' => $expiresAt,
+            ]);
+
+            // Increment listings.quantity_sold by inventoryDelta.
+            $u = $pdo->prepare(
+                "UPDATE listings SET quantity_sold = quantity_sold + ?, "
+                . "updated_at = NOW(), status = CASE WHEN quantity_sold + ? >= quantity "
+                . "THEN 'sold' ELSE status END "
+                . "WHERE id = ?"
+            );
+            $u->execute([$inventoryDelta, $inventoryDelta, $listingId]);
+
+            // Audit row.
+            Audit::log($buyerId, 'ticket.created', 'ticket', $ticketId, [
+                'listing_id' => $listingId,
+                'price_cents' => $priceCents,
+                'total_sessions' => $totalSessions,
+                'inventory_delta' => $inventoryDelta,
+                'ticket_code' => $code,
+            ]);
+
+            $pdo->commit();
+            return Error::envelope(true, [
+                'ticket_id' => $ticketId,
+                'ticket_code' => $code,
+                'listing_id' => $listingId,
+                'expires_at' => $expiresAt,
+                'session_number' => 1,
+                'total_sessions' => $totalSessions,
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not create ticket.',
+            ]);
+        }
+    }
+
+    /**
+     * Redeem a ticket atomically by code.
+     *
+     * Flow (per AD-9 + D-01):
+     *   1. Lookup the ticket by code (with status check pre-flight to
+     *      map errors cleanly: NOT_FOUND vs INVALID_STATE vs FORBIDDEN).
+     *   2. UPDATE tickets SET status='redeemed', redeemed_at=NOW()
+     *      WHERE ticket_code=? AND status='active'
+     *        AND dispute_status != 'pending' AND seller_id = ?
+     *   3. On success, delegate to points_service::awardTransaction()
+     *      which writes 2 points_log rows + bumps users.points/tier +
+     *      increments redeemed_count on the FINAL session path.
+     *
+     * @param string $code Dashed ticket code (e.g. TK-XXXX-XXXX-XXXX-XXXX-XXXX).
+     * @param int $sellerId The authenticated seller user_id.
+     * @return array AD-16 failure envelope. On success:
+     *   ['ok'=>true, 'data'=>['ticket_id'=>int, 'ticket_code'=>string,
+     *    'redeemed_at'=>string, 'points'=>['event_uuid_buyer'=>...,
+     *    'event_uuid_seller'=>..., 'delta_buyer'=>int, 'delta_seller'=>int]]]
+     */
+    public static function redeemTicket(string $code, int $sellerId): array
+    {
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            // Pre-flight lookup to distinguish NOT_FOUND from FORBIDDEN/INVALID_STATE.
+            $existing = ticket_model::findByCode($pdo, $code);
+            if ($existing === null) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_NOT_FOUND',
+                    'message' => 'Ticket not found.',
+                ]);
+            }
+            if ((int) $existing['seller_id'] !== $sellerId) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_FORBIDDEN',
+                    'message' => 'You do not have permission to redeem this ticket.',
+                ]);
+            }
+            if ((string) $existing['status'] !== 'active'
+                || (string) $existing['dispute_status'] === 'pending') {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'Ticket is not in a state that allows redemption.',
+                ]);
+            }
+
+            // Atomic UPDATE per AD-9.
+            $redeemed = ticket_model::markRedeemed($pdo, $code, $sellerId);
+            if ($redeemed === null) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'Ticket is not in a state that allows redemption.',
+                ]);
+            }
+
+            // Award points. The Service is the sole writer of
+            // points_log + users.points/tier per AD-10.
+            // Final session = total_sessions for products OR the
+            // explicit final_session path. For product tickets
+            // total_sessions=1, so this is always the final.
+            $isFinal = true;
+            $pointsRes = points_service::awardTransaction(
+                (int) $redeemed['buyer_id'],
+                (int) $redeemed['seller_id'],
+                (int) $redeemed['id'],
+                10,
+                30,
+                $isFinal ? 'final_session' : 'redemption'
+            );
+            if ($pointsRes['ok'] === false) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, $pointsRes['error']);
+            }
+
+            // Audit row.
+            Audit::log($sellerId, 'ticket.redeemed', 'ticket', (int) $redeemed['id'], [
+                'ticket_code' => $code,
+                'buyer_id' => (int) $redeemed['buyer_id'],
+                'is_final' => $isFinal,
+            ]);
+
+            $pdo->commit();
+            return Error::envelope(true, [
+                'ticket_id' => (int) $redeemed['id'],
+                'ticket_code' => $code,
+                'redeemed_at' => $redeemed['redeemed_at'] ?? null,
+                'points' => $pointsRes['data'] ?? null,
+                'is_final' => $isFinal,
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not redeem ticket.',
+            ]);
+        }
+    }
+
+    /**
+     * Confirm the next session on a multi-session service ticket.
+     *
+     * Flow:
+     *   1. Lookup the ticket.
+     *   2. Increment session_number atomically.
+     *   3. If new session_number < total_sessions: intermediate
+     *      session — no points, no status change.
+     *   4. If new session_number === total_sessions: final session —
+     *      atomic UPDATE to status='redeemed', redeemed_at=NOW(), then
+     *      points_service::awardTransaction() with referenceType='final_session'.
+     *
+     * @return array AD-16 failure envelope.
+     */
+    public static function confirmSession(int $ticketId, int $sellerId): array
+    {
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            $existing = ticket_model::findById($pdo, $ticketId);
+            if ($existing === null) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_NOT_FOUND',
+                    'message' => 'Ticket not found.',
+                ]);
+            }
+            if ((int) $existing['seller_id'] !== $sellerId) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_FORBIDDEN',
+                    'message' => 'You do not have permission to confirm this ticket.',
+                ]);
+            }
+            if ((string) $existing['status'] !== 'active'
+                || (string) $existing['dispute_status'] === 'pending') {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'Ticket is not in a state that allows confirmation.',
+                ]);
+            }
+            if ((int) $existing['session_number'] >= (int) $existing['total_sessions']) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'All sessions are already confirmed.',
+                ]);
+            }
+
+            $newSession = ticket_model::incrementSession($pdo, $ticketId, $sellerId);
+            if ($newSession === null) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'Could not confirm next session.',
+                ]);
+            }
+
+            $isFinal = ($newSession === (int) $existing['total_sessions']);
+            $pointsRes = null;
+            if ($isFinal) {
+                // Final session: atomic UPDATE to 'redeemed' + award.
+                $redeemRes = ticket_model::markRedeemedById($pdo, $ticketId, $sellerId);
+                if ($redeemRes === null) {
+                    $pdo->rollBack();
+                    return Error::envelope(false, null, [
+                        'code' => 'E_TICKET_INVALID_STATE',
+                        'message' => 'Could not finalize ticket.',
+                    ]);
+                }
+                $pointsRes = points_service::awardTransaction(
+                    (int) $existing['buyer_id'],
+                    (int) $existing['seller_id'],
+                    $ticketId,
+                    10,
+                    30,
+                    'final_session'
+                );
+                if ($pointsRes['ok'] === false) {
+                    $pdo->rollBack();
+                    return Error::envelope(false, null, $pointsRes['error']);
+                }
+            }
+
+            Audit::log($sellerId, 'ticket.session_confirmed', 'ticket', $ticketId, [
+                'session_number' => $newSession,
+                'is_final' => $isFinal,
+                'total_sessions' => (int) $existing['total_sessions'],
+            ]);
+
+            $pdo->commit();
+            return Error::envelope(true, [
+                'ticket_id' => $ticketId,
+                'session_number' => $newSession,
+                'is_final' => $isFinal,
+                'total_sessions' => (int) $existing['total_sessions'],
+                'points' => $pointsRes['data'] ?? null,
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not confirm session.',
+            ]);
+        }
+    }
+
+    /**
+     * File a dispute on a ticket. Per D-03 + AD-15.
+     *
+     * @param int $ticketId
+     * @param int $actorUserId The user filing the dispute (buyer or seller).
+     * @param string $reason One of DISPUTE_REASONS.
+     * @param string $text 1..DISPUTE_TEXT_MAX chars.
+     * @return array AD-16 failure envelope.
+     */
+    public static function fileDispute(int $ticketId, int $actorUserId, string $reason, string $text): array
+    {
+        // Validate reason + text length BEFORE opening a transaction.
+        if (!in_array($reason, self::DISPUTE_REASONS, true)) {
+            return Error::envelope(false, null, [
+                'code' => 'E_DISPUTE_INVALID_REASON',
+                'message' => 'Dispute reason is invalid.',
+            ]);
+        }
+        $textLen = mb_strlen($text);
+        if ($textLen < 1 || $textLen > self::DISPUTE_TEXT_MAX) {
+            return Error::envelope(false, null, [
+                'code' => 'E_DISPUTE_TEXT_TOO_LONG',
+                'message' => 'Dispute text must be between 1 and ' . self::DISPUTE_TEXT_MAX . ' characters.',
+            ]);
+        }
+
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            $updated = ticket_model::fileDispute($pdo, $ticketId, $actorUserId);
+            if ($updated === null) {
+                $pdo->rollBack();
+                // Differentiate NOT_FOUND vs INVALID_STATE vs FORBIDDEN.
+                $existing = ticket_model::findById($pdo, $ticketId);
+                if ($existing === null) {
+                    return Error::envelope(false, null, [
+                        'code' => 'E_TICKET_NOT_FOUND',
+                        'message' => 'Ticket not found.',
+                    ]);
+                }
+                if ((int) $existing['buyer_id'] !== $actorUserId
+                    && (int) $existing['seller_id'] !== $actorUserId) {
+                    return Error::envelope(false, null, [
+                        'code' => 'E_TICKET_FORBIDDEN',
+                        'message' => 'You do not have permission to dispute this ticket.',
+                    ]);
+                }
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_INVALID_STATE',
+                    'message' => 'Ticket is not in a state that allows disputes.',
+                ]);
+            }
+
+            // Insert reports row.
+            $now = (new DateTime('now', new DateTimeZone('Asia/Colombo')))->format('Y-m-d H:i:s');
+            $ins = $pdo->prepare(
+                "INSERT INTO reports (target_type, target_id, reporter_id, reason, text, status, created_at) "
+                . "VALUES (?, ?, ?, ?, ?, 'pending', ?)"
+            );
+            $ins->execute(['ticket', $ticketId, $actorUserId, $reason, $text, $now]);
+
+            Audit::log($actorUserId, 'ticket.dispute_filed', 'ticket', $ticketId, [
+                'reason' => $reason,
+                'text_length' => $textLen,
+            ]);
+
+            $pdo->commit();
+            return Error::envelope(true, [
+                'affected_ticket_id' => $ticketId,
+                'dispute_status' => 'pending',
+                'ticket_status' => $updated['status'],
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Could not file dispute.',
+            ]);
+        }
+    }
+
+    /**
+     * Get a ticket for the authenticated viewer. Returns null if the
+     * viewer is not buyer, seller, or admin (T-04-15 — 404 vs 403).
+     */
+    public static function getTicketForViewer(int $ticketId, array $viewerRow): ?array
+    {
+        $pdo = Db::pdo();
+        $ticket = ticket_model::findById($pdo, $ticketId);
+        if ($ticket === null) {
+            return null;
+        }
+        $uid = (int) ($viewerRow['user_id'] ?? 0);
+        $isAdmin = !empty($viewerRow['is_admin']);
+        if (!$isAdmin
+            && (int) $ticket['buyer_id'] !== $uid
+            && (int) $ticket['seller_id'] !== $uid) {
+            return null;
+        }
+        return $ticket;
+    }
+}

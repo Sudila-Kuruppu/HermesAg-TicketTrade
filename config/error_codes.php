@@ -28,4 +28,17 @@ return [
     'E_LISTING_FORBIDDEN'   => 'You do not have permission to modify this listing.',
     'E_LISTING_REVIEW_FLAG' => 'Edits to active listings are pending admin review.',
     'E_CATEGORY_NOT_FOUND'  => 'Category not found.',
+
+    // Phase 4 additions (Plan 04-01).
+    'E_TICKET_NOT_FOUND'      => 'Ticket not found.',
+    'E_TICKET_FORBIDDEN'      => 'You do not have permission to access this ticket.',
+    'E_TICKET_INVALID_STATE'  => 'Ticket is not in a state that allows this action.',
+    'E_TICKET_CODE_COLLISION' => 'Could not generate a unique ticket code. Please retry.',
+    'E_TICKET_SELF_PURCHASE'  => 'You cannot buy your own listing.',
+    'E_TICKET_NOT_ACTIVE'     => 'Ticket is not active.',
+    'E_LISTING_SOLD_OUT'      => 'This listing is sold out.',
+    'E_DISPUTE_INVALID_REASON'=> 'Dispute reason is invalid.',
+    'E_DISPUTE_TEXT_TOO_LONG' => 'Dispute text must be 200 characters or fewer.',
+    'E_POINTS_FROZEN'         => 'Points operations are frozen for this user.',
+    'E_POINTS_WRITE'          => 'Could not record points.',
 ];
