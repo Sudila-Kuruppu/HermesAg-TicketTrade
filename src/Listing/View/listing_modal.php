@@ -3,21 +3,22 @@
 /**
  * TicketTrade — Listing/View/listing_modal
  *
- * Phase 3 Plan 03-03. The full-screen listing modal at the bottom of
- * the board page. Single modal, content swapped in by JS (per D-22:
- * the JS reads /listings/{id}?fragment=1 to fetch new content; for
- * Phase 3 the initial modal HTML is pre-rendered with the first
- * visible listing's data to keep the demo fast and avoid a fetch
- * roundtrip on first click).
+ * Phase 3 Plan 03-03 + Phase 4 Plan 04-02. The full-screen listing
+ * modal at the bottom of the board page. Single modal, content
+ * swapped in by JS (per D-22: the JS reads /listings/{id}?fragment=1
+ * to fetch new content; for Phase 3 the initial modal HTML is
+ * pre-rendered with the first visible listing's data to keep the
+ * demo fast and avoid a fetch roundtrip on first click).
  *
- * The modal:
- *   - Bootstrap 5.3: modal-fullscreen-sm-down, modal-dialog-centered
- *   - Image carousel: data-bs-ride="false", no auto-advance
- *   - Prev/Next buttons in the modal header walk listings in the
- *     same category (created_at DESC) — wraps at end-of-list
- *   - Keyboard: ←/→ prev/next, Esc close + focus return
- *   - Mobile swipe: touchstart/touchend with 50px threshold
- *   - URL hash: /board#listing-{id} on open, removed on close
+ * Phase 4 changes:
+ *   - The "Buy now" button is now a <form method="POST" action=
+ *     "/listings/{id}/buy"> carrying the CSRF token. The Action
+ *     runs the rate-limit + ticket creation transaction and 302s
+ *     to /my-tickets on success.
+ *   - The button is HIDDEN when the current user is the seller
+ *     (per EXPERIENCE.md L196-197) OR when the listing is sold out.
+ *   - Guests still see the "Sign in to buy" link per D-09 of
+ *     Phase 3.
  *
  * The data-component="listingModal" attribute hooks the JS component.
  */
@@ -28,6 +29,10 @@ $__vars = $GLOBALS['_tt_view_vars'] ?? [];
 $firstListing = $__vars['first_listing'] ?? null;
 $nextId = $__vars['next_id'] ?? null;
 $prevId = $__vars['prev_id'] ?? null;
+$currentUser = $GLOBALS['current_user'] ?? null;
+$currentUserId = $currentUser !== null ? (int) ($currentUser['user_id'] ?? 0) : 0;
+$isGuest = ($currentUser === null);
+$csrfToken = (string) ($__vars['csrf_token'] ?? \App\Support\Csrf::token());
 ?>
 <div class="modal fade listing-modal" id="listingModal" tabindex="-1"
      aria-labelledby="listingModalTitle" aria-hidden="true"
@@ -60,10 +65,16 @@ $prevId = $__vars['prev_id'] ?? null;
                     $carouselImages[] = $img;
                 }
             }
+            $listingId = (int) $firstListing['id'];
+            $listingSellerId = (int) ($firstListing['seller_id'] ?? 0);
+            $listingQuantity = (int) ($firstListing['quantity'] ?? 1);
+            $listingQuantitySold = (int) ($firstListing['quantity_sold'] ?? 0);
+            $isSoldOut = $listingQuantitySold >= $listingQuantity;
+            $isOwnListing = $currentUserId > 0 && $listingSellerId === $currentUserId;
             ?>
-          <div class="listing-modal__carousel-wrap" data-listing-id="<?= (int) $firstListing['id'] ?>">
+          <div class="listing-modal__carousel-wrap" data-listing-id="<?= (int) $listingId ?>">
             <?= \App\Support\View::partial('listing_modal_carousel', [
-                'listing_id' => (int) $firstListing['id'],
+                'listing_id' => $listingId,
                 'title' => (string) $firstListing['title'],
                 'images' => $carouselImages,
                 'id_prefix' => 'listingModalCarouselInitial',
@@ -88,12 +99,32 @@ $prevId = $__vars['prev_id'] ?? null;
                   <?= htmlspecialchars((string) ($firstListing['seller_tier'] ?? 'E'), ENT_QUOTES, 'UTF-8') ?>
                 </span>
               </div>
-              <div class="listing-modal__actions mt-4">
-                <a href="/listings/<?= (int) $firstListing['id'] ?>#buy"
-                   class="btn btn-primary listing-modal__buy">
-                  Buy now
-                </a>
-                <a href="/listings/<?= (int) $firstListing['id'] ?>/report"
+              <div class="listing-modal__actions mt-4" data-listing-actions>
+                <?php if ($isGuest) : ?>
+                  <!-- Guest: Sign in to buy (D-09 Phase 3) -->
+                  <a href="/login?next=/board" class="btn btn-primary listing-modal__buy">
+                    Sign in to buy
+                  </a>
+                <?php elseif ($isOwnListing) : ?>
+                  <!-- Self-owned listing (EXPERIENCE.md L196) -->
+                  <span class="badge surface-container-high px-3 py-2 listing-modal__self-owned">
+                    This is your listing.
+                  </span>
+                <?php elseif ($isSoldOut) : ?>
+                  <!-- Sold-out listing (EXPERIENCE.md L196) -->
+                  <span class="badge bg-secondary px-3 py-2 listing-modal__sold-out" aria-label="Out of stock">
+                    Out of stock
+                  </span>
+                <?php else : ?>
+                  <!-- Logged-in buyer, not own listing, in stock: real Buy now POST -->
+                  <form method="POST" action="/listings/<?= (int) $listingId ?>/buy" class="listing-modal__buy-form">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                    <button type="submit" class="btn btn-primary listing-modal__buy">
+                      Buy now
+                    </button>
+                  </form>
+                <?php endif; ?>
+                <a href="/listings/<?= (int) $listingId ?>/report"
                    class="btn btn-link listing-modal__report">Report</a>
               </div>
             </div>

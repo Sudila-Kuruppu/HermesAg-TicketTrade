@@ -179,6 +179,7 @@ if ($firstListing !== null) {
           'first_listing' => $firstListingWithImages ?? $firstListing,
           'prev_id' => $prevId,
           'next_id' => $nextId,
+          'csrf_token' => \App\Support\Csrf::token(),
         ];
         require __DIR__ . '/listing_modal.php';
   endif; ?>
