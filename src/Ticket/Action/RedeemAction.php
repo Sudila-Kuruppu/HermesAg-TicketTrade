@@ -111,9 +111,12 @@ class RedeemAction
         if (strpos($stripped, 'TK') === 0) {
             $stripped = substr($stripped, 2);
         }
-        // Now we expect 24 chars (6 groups * 4). If not, the input
-        // is malformed.
-        if (strlen($stripped) !== 24) {
+        // Per D-01 + 04-01 decision: the canonical form is
+        // TK-XXXX-XXXX-XXXX-XXXX-XXXX = 5 groups of 4 base62 chars
+        // (20 chars total after the prefix). 6 groups was an early
+        // plan choice that was reverted in 04-01 (it overflowed
+        // VARCHAR(30)).
+        if (strlen($stripped) !== 20) {
             return '';
         }
         $groups = str_split($stripped, 4);

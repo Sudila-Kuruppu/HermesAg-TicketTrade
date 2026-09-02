@@ -3,7 +3,7 @@
 /**
  * TicketTrade — Ticket\Action\BuyAction
  *
- * Phase 4 Plan 04-01. POST /listings/{id}/buy.
+ * Phase 4 Plan 04-01 + Plan 04-02. POST /listings/{id}/buy.
  *
  * Per AD-1: thin Action (validate → call Service → render View).
  *   - CSRF: enforced by Support\Csrf::verify() at bootstrap.
@@ -12,16 +12,16 @@
  *     Service transaction begins.
  *   - Delegates to Ticket\Service\ticket_service::createTicket().
  *
- * On success: flash toast + 302 /my-tickets. On failure: re-render
- * the listing modal View with the error inline (preserves the
- * buyer's context per EXPERIENCE.md).
+ * On success: flash toast + 302 /my-tickets?new={ticket_id} so the
+ * View can auto-focus the freshly-bought card (D-02).
+ * On failure: flash error + 302 back to /board#{listing_id} so the
+ * user sees the listing modal again with the error inline.
  */
 
 declare(strict_types=1);
 
 namespace App\Ticket\Action;
 
-use App\Listing\Service\listing_service;
 use App\Support\Auth as AuthGuard;
 use App\Support\Csrf;
 use App\Support\RateLimit;
@@ -37,19 +37,15 @@ class BuyAction
     {
         $user = AuthGuard::currentUser();
         if ($user === null) {
-            http_response_code(401);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'ok' => false,
-                'error' => ['code' => 'E_AUTH_REQUIRED', 'message' => 'Authentication required.'],
-            ]);
+            header('Location: /login?next=/board');
             exit;
         }
         $userId = (int) $user['user_id'];
         $listingId = (int) ($GLOBALS['_tt_path_params']['id'] ?? 0);
         if ($listingId <= 0) {
-            $this->renderListingModalError(null, ['code' => 'E_VALIDATION', 'message' => 'Invalid listing.']);
-            return;
+            View::flash('error', 'Invalid listing.');
+            header('Location: /board');
+            exit;
         }
 
         // CSRF is enforced at bootstrap; just read the token for the form.
@@ -59,53 +55,27 @@ class BuyAction
         $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
         $rl = RateLimit::hit('purchase', $ip, (string) $userId);
         if (!$rl['allowed']) {
-            http_response_code(429);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'ok' => false,
-                'error' => [
-                    'code' => 'E_RATE_LIMIT',
-                    'message' => 'Too many purchases. Try again later.',
-                ],
-            ]);
+            View::flash('error', 'Too many purchases. Try again later.');
+            header('Location: /board#listing-' . $listingId);
             exit;
         }
 
         $result = ticket_service::createTicket($listingId, $userId);
         if ($result['ok'] === true) {
             $code = (string) ($result['data']['ticket_code'] ?? '');
+            $ticketId = (int) ($result['data']['ticket_id'] ?? 0);
             View::flash('success', 'Ticket created. Code: ' . $code);
-            header('Location: /my-tickets');
+            header('Location: /my-tickets?new=' . $ticketId);
             exit;
         }
 
-        $this->renderListingModalError($listingId, $result['error']);
-    }
-
-    /**
-     * Internal: re-render the listing modal View with the error inline.
-     */
-    private function renderListingModalError(?int $listingId, array $error): void
-    {
-        // If we don't know the listing id, fall back to the board.
-        if ($listingId === null || $listingId <= 0) {
-            View::flash('error', (string) ($error['message'] ?? 'Could not complete purchase.'));
-            header('Location: /board');
-            exit;
-        }
-
-        $listing = listing_service::getWithImages($listingId);
-        $GLOBALS['_tt_form_error'] = $error;
-        View::render(
-            __DIR__ . '/../../Listing/View/listing_modal.php',
-            [
-                'csrf_token' => Csrf::token(),
-                'listing' => $listing,
-                'listing_id' => $listingId,
-                'page_message' => (string) ($error['message'] ?? 'Could not complete purchase.'),
-                'page_title' => 'Listing',
-            ]
-        );
+        // Failure: re-render the board with the listing modal showing
+        // the error. The simplest path is to flash the error message
+        // and 302 back to the board with the listing hash, then the
+        // JS re-opens the modal. The listing modal's hidden self-owned
+        // / sold-out paths keep us from rendering the form for those.
+        View::flash('error', (string) ($result['error']['message'] ?? 'Could not complete purchase.'));
+        header('Location: /board#listing-' . $listingId);
         exit;
     }
 }

@@ -10,6 +10,8 @@
 
 declare(strict_types=1);
 
+use App\Ticket\Service\ticket_service;
+
 $vars = $GLOBALS['_tt_view_vars'] ?? [];
 $ticketId = (int) ($vars['ticket_id'] ?? 0);
 $csrfToken = (string) ($vars['csrf_token'] ?? \App\Support\Csrf::token());
