@@ -458,4 +458,98 @@ class ticket_model
         }
         return self::findById($pdo, $ticketId);
     }
+
+
+    /**
+     * Sweep query — find all tickets that have aged past their expiry
+     * window (7 days) and are eligible for the cron sweep. Returns
+     * active tickets whose `expires_at <= NOW()` AND whose dispute is
+     * not pending (admin must resolve disputes first per PRD §4.2).
+     *
+     * Each row carries the listing_id and listing type so the Service
+     * can apply the AD-7 inventory invariant (products -1, services
+     * `total_sessions - (session_number - 1)`).
+     *
+     * Per AD-9: read-only query; no row mutation. Returns ticket rows
+     * joined with `listings.id` + `listings.type`.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findExpiringTickets(PDO $pdo): array
+    {
+        $sql = "SELECT t.id, t.ticket_code, t.listing_id, t.buyer_id, t.seller_id, "
+            . "t.status, t.dispute_status, t.session_number, t.total_sessions, "
+            . "t.price_cents, t.expires_at, "
+            . "l.type AS listing_type, l.quantity AS listing_quantity, "
+            . "l.quantity_sold AS listing_quantity_sold, l.status AS listing_status "
+            . "FROM tickets t JOIN listings l ON l.id = t.listing_id "
+            . "WHERE t.status = 'active' "
+            . "AND t.dispute_status != 'pending' "
+            . "AND t.expires_at <= NOW()";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Sweep query — find all tickets with a pending dispute older than
+     * the 3-day auto-dismiss window. Each row carries the pre-dispute
+     * `status` (captured BEFORE the auto-dismiss UPDATE runs) so the
+     * Service can restore it via the matching CASE branch.
+     *
+     * Per D-07 + agent's Discretion: the dispute auto-dismiss sweep
+     * NEVER touches `created_at`; the value is captured here for the
+     * post-sweep `created_at` invariant assertion.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findStaleDisputes(PDO $pdo): array
+    {
+        $sql = "SELECT id, ticket_code, listing_id, buyer_id, seller_id, "
+            . "status, dispute_status, session_number, total_sessions, "
+            . "price_cents, disputed_at, created_at "
+            . "FROM tickets "
+            . "WHERE dispute_status = 'pending' "
+            . "AND disputed_at <= NOW() - INTERVAL 3 DAY";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Decrement `listings.quantity_sold` for an expired ticket per the
+     * AD-7 inventory invariant. For products the decrement is 1; for
+     * services it is `total_sessions - (session_number - 1)` (the
+     * undelivered sessions). If the decrement causes
+     * `quantity_sold < quantity AND status='sold'`, the listing is
+     * restored to `status='active'`.
+     *
+     * The Service calls this AFTER the ticket's status has been
+     * flipped to `expired`. Uses a single guarded UPDATE per ticket.
+     * Returns the new `quantity_sold` value.
+     */
+    public static function decrementListingStockForExpiredTicket(int $ticketId, int $decrement): int
+    {
+        $pdo = Db::pdo();
+        // Decrement listings.quantity_sold by $decrement.
+        $pdo->prepare(
+            'UPDATE listings SET quantity_sold = GREATEST(quantity_sold - ?, 0), '
+            . 'updated_at = NOW() WHERE id = ?'
+        )->execute([$decrement, $ticketId]);
+
+        // Restore the listing's status to 'active' if the decrement
+        // frees up stock on a sold-out listing. Guarded on
+        // `quantity_sold < quantity` so already-active listings stay
+        // untouched.
+        $pdo->prepare(
+            'UPDATE listings SET status = 'active', updated_at = NOW() '
+            . 'WHERE id = ? AND status = 'sold' AND quantity_sold < quantity'
+        )->execute([$ticketId]);
+
+        // Return the new quantity_sold for caller inspection.
+        $stmt = $pdo->prepare('SELECT quantity_sold FROM listings WHERE id = ?');
+        $stmt->execute([$ticketId]);
+        $row = $stmt->fetch();
+        return $row === false ? 0 : (int) $row['quantity_sold'];
+    }
 }
