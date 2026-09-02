@@ -190,6 +190,7 @@ class ticket_service
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            error_log('[ticket_service::createTicket] ' . $e->getMessage());
             return Error::envelope(false, null, [
                 'code' => 'E_INTERNAL',
                 'message' => 'Could not create ticket.',
@@ -239,8 +240,10 @@ class ticket_service
                     'message' => 'You do not have permission to redeem this ticket.',
                 ]);
             }
-            if ((string) $existing['status'] !== 'active'
-                || (string) $existing['dispute_status'] === 'pending') {
+            if (
+                (string) $existing['status'] !== 'active'
+                || (string) $existing['dispute_status'] === 'pending'
+            ) {
                 $pdo->rollBack();
                 return Error::envelope(false, null, [
                     'code' => 'E_TICKET_INVALID_STATE',
@@ -296,6 +299,7 @@ class ticket_service
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            error_log('[ticket_service::redeemTicket] ' . $e->getMessage());
             return Error::envelope(false, null, [
                 'code' => 'E_INTERNAL',
                 'message' => 'Could not redeem ticket.',
@@ -338,8 +342,10 @@ class ticket_service
                     'message' => 'You do not have permission to confirm this ticket.',
                 ]);
             }
-            if ((string) $existing['status'] !== 'active'
-                || (string) $existing['dispute_status'] === 'pending') {
+            if (
+                (string) $existing['status'] !== 'active'
+                || (string) $existing['dispute_status'] === 'pending'
+            ) {
                 $pdo->rollBack();
                 return Error::envelope(false, null, [
                     'code' => 'E_TICKET_INVALID_STATE',
@@ -455,8 +461,10 @@ class ticket_service
                         'message' => 'Ticket not found.',
                     ]);
                 }
-                if ((int) $existing['buyer_id'] !== $actorUserId
-                    && (int) $existing['seller_id'] !== $actorUserId) {
+                if (
+                    (int) $existing['buyer_id'] !== $actorUserId
+                    && (int) $existing['seller_id'] !== $actorUserId
+                ) {
                     return Error::envelope(false, null, [
                         'code' => 'E_TICKET_FORBIDDEN',
                         'message' => 'You do not have permission to dispute this ticket.',
@@ -511,9 +519,11 @@ class ticket_service
         }
         $uid = (int) ($viewerRow['user_id'] ?? 0);
         $isAdmin = !empty($viewerRow['is_admin']);
-        if (!$isAdmin
+        if (
+            !$isAdmin
             && (int) $ticket['buyer_id'] !== $uid
-            && (int) $ticket['seller_id'] !== $uid) {
+            && (int) $ticket['seller_id'] !== $uid
+        ) {
             return null;
         }
         return $ticket;

@@ -104,8 +104,14 @@ class points_service
         string $referenceType
     ): array {
         $pdo = Db::pdo();
+        // Support being called inside an outer transaction (e.g.
+        // ticket_service::redeemTicket). If a transaction is already
+        // active, we participate in it; the caller commits/rolls back.
+        $ownsTransaction = !$pdo->inTransaction();
         try {
-            $pdo->beginTransaction();
+            if ($ownsTransaction) {
+                $pdo->beginTransaction();
+            }
 
             // Lock both user rows.
             $lockStmt = $pdo->prepare(
@@ -115,7 +121,9 @@ class points_service
             $lockStmt->execute([$buyerId, $sellerId]);
             $rows = $lockStmt->fetchAll();
             if (count($rows) < 2) {
-                $pdo->rollBack();
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
                 return [
                     'ok' => false,
                     'error' => [
@@ -135,7 +143,9 @@ class points_service
                 }
             }
             if ($buyerRow === null || $sellerRow === null) {
-                $pdo->rollBack();
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
                 return [
                     'ok' => false,
                     'error' => [
@@ -147,7 +157,9 @@ class points_service
 
             // FR-PTS-010: skip if either party has points_frozen=TRUE.
             if (!empty($buyerRow['points_frozen']) || !empty($sellerRow['points_frozen'])) {
-                $pdo->commit();
+                if ($ownsTransaction) {
+                    $pdo->commit();
+                }
                 return [
                     'ok' => true,
                     'data' => ['skipped' => 'points_frozen'],
@@ -216,7 +228,9 @@ class points_service
                 $inc->execute([$buyerId, $sellerId]);
             }
 
-            $pdo->commit();
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
             return [
                 'ok' => true,
                 'data' => [
@@ -229,7 +243,7 @@ class points_service
                 ],
             ];
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             return [

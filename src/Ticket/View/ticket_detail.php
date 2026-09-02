@@ -11,6 +11,9 @@
 
 declare(strict_types=1);
 
+use App\Support\Csrf;
+use App\Support\View;
+
 $vars = $GLOBALS['_tt_view_vars'] ?? [];
 $ticket = $vars['ticket'] ?? null;
 if ($ticket === null) {
@@ -32,9 +35,9 @@ $sellerNickname = (string) ($ticket['seller_nickname'] ?? 'unknown');
   <h1 class="h4 mb-3">Ticket #<?= htmlspecialchars((string) $ticketId, ENT_QUOTES, 'UTF-8') ?></h1>
 
   <div class="d-flex gap-2 align-items-center mb-3">
-    <?php \App\Support\View::partial('status_badge', ['status' => $status]); ?>
-    <?php if ($totalSessions > 1): ?>
-      <?php \App\Support\View::partial('session_progress', [
+    <?php View::partial('status_badge', ['status' => $status]); ?>
+    <?php if ($totalSessions > 1) : ?>
+        <?php View::partial('session_progress', [
         'session_number' => $sessionNumber,
         'total_sessions' => $totalSessions,
       ]); ?>
@@ -48,56 +51,24 @@ $sellerNickname = (string) ($ticket['seller_nickname'] ?? 'unknown');
     Seller: @<?= htmlspecialchars($sellerNickname, ENT_QUOTES, 'UTF-8') ?>
   </p>
 
-  <?php \App\Support\View::partial('ticket_code_block', [
+  <?php View::partial('ticket_code_block', [
     'code' => $code,
     'seller_whatsapp' => $sellerWhatsapp,
   ]); ?>
 
-  <?php if ($canDispute): ?>
+  <?php if ($canDispute) : ?>
     <div class="mt-4">
-      <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#disputeModal">
+      <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
+              data-bs-target="#dispute-modal-<?= (int) $ticketId ?>">
         File dispute
       </button>
     </div>
-    <?php \App\Ticket\View\dispute_modal_stub($ticketId); ?>
+        <?php
+        $GLOBALS['_tt_view_vars'] = [
+        'ticket_id' => $ticketId,
+        'csrf_token' => Csrf::token(),
+        ];
+        require __DIR__ . '/dispute_modal.php';
+        ?>
   <?php endif; ?>
 </main>
-<?php
-
-/**
- * Helper: inline modal stub so we don't need a separate file. Real
- * production deploys include the dispute_modal.php from the View
- * directory directly.
- */
-function dispute_modal_stub(int $ticketId): void {
-    ?>
-    <div class="modal fade" id="disputeModal" tabindex="-1" data-scrim-guard="2">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <form method="POST" action="/tickets/<?= (int) $ticketId ?>/dispute">
-            <div class="modal-header">
-              <h5 class="modal-title">File dispute</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
-              <label class="form-label" for="dispute-reason-<?= (int) $ticketId ?>">Reason</label>
-              <select class="form-select" id="dispute-reason-<?= (int) $ticketId ?>" name="reason" required>
-                <option value="seller_unresponsive">Seller unresponsive</option>
-                <option value="item_not_as_described">Item not as described</option>
-                <option value="buyer_unresponsive">Buyer unresponsive</option>
-                <option value="other">Other</option>
-              </select>
-              <label class="form-label mt-3" for="dispute-text-<?= (int) $ticketId ?>">Details (max 200 chars)</label>
-              <textarea class="form-control" id="dispute-text-<?= (int) $ticketId ?>" name="text" maxlength="200" required></textarea>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-danger">Submit</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    <?php
-}
