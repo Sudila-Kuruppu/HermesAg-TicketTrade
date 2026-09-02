@@ -542,8 +542,8 @@ class ticket_model
         // `quantity_sold < quantity` so already-active listings stay
         // untouched.
         $pdo->prepare(
-            'UPDATE listings SET status = 'active', updated_at = NOW() '
-            . 'WHERE id = ? AND status = 'sold' AND quantity_sold < quantity'
+            "UPDATE listings SET status = 'active', updated_at = NOW() "
+            . "WHERE id = ? AND status = 'sold' AND quantity_sold < quantity"
         )->execute([$ticketId]);
 
         // Return the new quantity_sold for caller inspection.

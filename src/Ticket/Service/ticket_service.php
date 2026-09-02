@@ -600,4 +600,252 @@ class ticket_service
         $pdo = Db::pdo();
         return ticket_model::findPurchaseHistory($pdo, $buyerId);
     }
+
+
+    /**
+     * Run the 3-day dispute auto-dismiss sweep (D-07). For every
+     * ticket with `dispute_status='pending'` AND `disputed_at <= NOW()
+     * - INTERVAL 3 DAY`, the sweep:
+     *   1. Captures the pre-dispute `status` (active or redeemed).
+     *   2. UPDATEs the row to `dispute_status='rejected'`,
+     *      `status` restored to its pre-dispute value, `updated_at` =
+     *      NOW(); `created_at` and `disputed_at` are NEVER touched.
+     *   3. Appends `Audit::log('ticket.dispute_auto_dismissed')` per
+     *      affected ticket.
+     *
+     * Returns the AD-16 envelope:
+     *   ['ok'=>true, 'data'=>['processed'=>N, 'affected_tickets'=>['TK-...', ...]]]
+     *
+     * Idempotent: the WHERE guard filters already-rejected tickets.
+     *
+     * @return array{ok:bool,data:?array,error:?array}
+     */
+    public static function runDisputeAutoDismissSweep(int $actorUserId): array
+    {
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            // Read the pre-dispute rows (FOR UPDATE locks them).
+            $stale = $pdo->query(
+                "SELECT id, ticket_code, status "
+                . "FROM tickets "
+                . "WHERE dispute_status = 'pending' "
+                . "AND disputed_at <= NOW() - INTERVAL 3 DAY "
+                . "FOR UPDATE"
+            )->fetchAll();
+
+            if (empty($stale)) {
+                $pdo->commit();
+                self::writeCronLog(
+                    'ticket.dispute_auto_dismiss',
+                    $actorUserId,
+                    0,
+                    []
+                );
+                return Error::envelope(true, [
+                    'processed' => 0,
+                    'affected_tickets' => [],
+                ], null);
+            }
+
+            $affected = [];
+            $upd = $pdo->prepare(
+                "UPDATE tickets SET dispute_status = 'rejected', "
+                . "status = CASE WHEN status = 'active' THEN 'active' "
+                . "WHEN status = 'redeemed' THEN 'redeemed' "
+                . "ELSE status END, "
+                . "updated_at = NOW() "
+                . "WHERE id = ? AND dispute_status = 'pending' "
+                . "AND disputed_at <= NOW() - INTERVAL 3 DAY"
+            );
+            foreach ($stale as $row) {
+                $upd->execute([(int) $row['id']]);
+                if ($upd->rowCount() > 0) {
+                    $affected[] = [
+                        'ticket_id' => (int) $row['id'],
+                        'ticket_code' => (string) $row['ticket_code'],
+                        'restored_status' => (string) $row['status'],
+                    ];
+                    Audit::log(
+                        $actorUserId > 0 ? $actorUserId : null,
+                        'ticket.dispute_auto_dismissed',
+                        'ticket',
+                        (int) $row['id'],
+                        [
+                            'old_dispute_status' => 'pending',
+                            'new_dispute_status' => 'rejected',
+                            'restored_status' => (string) $row['status'],
+                        ]
+                    );
+                }
+            }
+
+            $pdo->commit();
+
+            self::writeCronLog(
+                'ticket.dispute_auto_dismiss',
+                $actorUserId,
+                count($affected),
+                []
+            );
+
+            return Error::envelope(true, [
+                'processed' => count($affected),
+                'affected_tickets' => $affected,
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('[ticket_service::runDisputeAutoDismissSweep] ' . $e->getMessage());
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Dispute auto-dismiss sweep failed.',
+            ]);
+        }
+    }
+
+    /**
+     * Run the 7-day ticket expiry sweep (D-07). For every ticket with
+     * `status='active' AND dispute_status != 'pending' AND expires_at <= NOW()`:
+     *   1. UPDATEs the row to `status='expired'`, `updated_at=NOW()`.
+     *   2. For each affected ticket, decrements
+     *      `listings.quantity_sold` per AD-7 (1 for products,
+     *      `total_sessions - (session_number - 1)` for services).
+     *   3. If `quantity_sold < quantity AND listings.status='sold'`,
+     *      the Service restores `listings.status='active'`.
+     *   4. Appends `Audit::log('ticket.expired')` per affected ticket.
+     *
+     * The single guarded UPDATE is the dominant cost; the per-ticket
+     * loop is bounded by the number of expiring tickets, not the total
+     * ticket population. Per NFR-PER-004, completes in < 30s for 10k
+     * tickets.
+     *
+     * @return array{ok:bool,data:?array,error:?array}
+     */
+    public static function runTicketExpirySweep(int $actorUserId): array
+    {
+        $pdo = Db::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            // Step 1: Single guarded UPDATE — flip eligible tickets
+            // to 'expired'. Skip rows where dispute_status='pending'
+            // (admin must resolve first per PRD §4.2).
+            $expireStmt = $pdo->prepare(
+                "UPDATE tickets SET status = 'expired', updated_at = NOW() "
+                . "WHERE status = 'active' "
+                . "AND dispute_status != 'pending' "
+                . "AND expires_at <= NOW()"
+            );
+            $expireStmt->execute();
+            $expireCount = (int) $expireStmt->rowCount();
+
+            if ($expireCount === 0) {
+                $pdo->commit();
+                self::writeCronLog(
+                    'ticket.expire',
+                    $actorUserId,
+                    0,
+                    []
+                );
+                return Error::envelope(true, [
+                    'processed' => 0,
+                    'affected_tickets' => [],
+                ], null);
+            }
+
+            // Step 2: Read the just-expired tickets so we can apply
+            // the AD-7 inventory invariant per row. The reads run
+            // inside the same transaction so the rowCount() result
+            // is consistent.
+            $expired = $pdo->query(
+                "SELECT t.id, t.ticket_code, t.listing_id, t.session_number, "
+                . "t.total_sessions, l.type AS listing_type, "
+                . "t.expires_at "
+                . "FROM tickets t JOIN listings l ON l.id = t.listing_id "
+                . "WHERE t.status = 'expired' "
+                . "AND t.expires_at <= NOW() "
+                . "AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)"
+            )->fetchAll();
+
+            $affected = [];
+            foreach ($expired as $row) {
+                $lid = (int) $row['listing_id'];
+                $isService = ((string) $row['listing_type'] === 'service');
+                $decrement = $isService
+                    ? max(1, ((int) $row['total_sessions']) - ((int) $row['session_number'] - 1))
+                    : 1;
+
+                ticket_model::decrementListingStockForExpiredTicket($lid, $decrement);
+
+                $affected[] = [
+                    'ticket_id' => (int) $row['id'],
+                    'ticket_code' => (string) $row['ticket_code'],
+                    'listing_id' => $lid,
+                    'decrement' => $decrement,
+                ];
+
+                Audit::log(
+                    $actorUserId > 0 ? $actorUserId : null,
+                    'ticket.expired',
+                    'ticket',
+                    (int) $row['id'],
+                    [
+                        'expires_at' => (string) $row['expires_at'],
+                        'listing_id' => $lid,
+                        'decrement' => $decrement,
+                    ]
+                );
+            }
+
+            $pdo->commit();
+
+            self::writeCronLog(
+                'ticket.expire',
+                $actorUserId,
+                count($affected),
+                []
+            );
+
+            return Error::envelope(true, [
+                'processed' => count($affected),
+                'affected_tickets' => $affected,
+            ], null);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('[ticket_service::runTicketExpirySweep] ' . $e->getMessage());
+            return Error::envelope(false, null, [
+                'code' => 'E_INTERNAL',
+                'message' => 'Ticket expiry sweep failed.',
+            ]);
+        }
+    }
+
+    /**
+     * Append a structured run-log row to the `cron_log` table (Plan
+     * 03-02 migration 012). Phase 9 will migrate this to the
+     * hash-chained audit_log (AD-12). Logging failures must not break
+     * the sweep itself.
+     */
+    private static function writeCronLog(string $jobName, int $actorUserId, int $processed, array $errors): void
+    {
+        try {
+            $stmt = Db::pdo()->prepare(
+                'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '
+                . 'VALUES (?, NOW(), ?, ?, ?, NOW())'
+            );
+            $stmt->execute([
+                $jobName,
+                $processed,
+                json_encode($errors, JSON_UNESCAPED_UNICODE),
+                $actorUserId > 0 ? $actorUserId : null,
+            ]);
+        } catch (Throwable $e) {
+            error_log('[cron_log] write failed: ' . $e->getMessage());
+        }
+    }
 }
