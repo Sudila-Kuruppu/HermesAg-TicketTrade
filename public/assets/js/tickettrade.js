@@ -496,6 +496,83 @@
     });
   });
 
+
+  // ---------------------------------------------------------------------------
+  // ticket-code-block — mask/reveal + copy + WhatsApp share (Plan 04-01)
+  //
+  // Reads data-code-value + data-seller-whatsapp from each element.
+  // On Reveal click: replaces the masked text with the full code.
+  // On Copy click: writes the full code to the clipboard and emits an
+  //   aria-live confirmation. The WhatsApp share URL is built server-
+  //   side in the PHP partial — the JS does NOT touch the href.
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('ticket-code-block', function (root) {
+    root = root || document;
+    var blocks = root.querySelectorAll('[data-component="ticket-code-block"]');
+    if (!blocks.length) return;
+    blocks.forEach(function (block) {
+      var codeEl = block.querySelector('[data-role="code"]');
+      var toggleBtn = block.querySelector('[data-role="toggle"]');
+      var copyBtn = block.querySelector('[data-role="copy"]');
+      var confirmEl = block.querySelector('[data-role="confirmation"]');
+      var fullCode = block.getAttribute('data-code-value') || '';
+      if (!codeEl || !toggleBtn || !copyBtn || !fullCode) return;
+
+      function showConfirmation(msg) {
+        if (!confirmEl) return;
+        confirmEl.textContent = msg;
+        // Clear after a moment so the aria-live region does not spam
+        // screen readers on subsequent copies.
+        setTimeout(function () { confirmEl.textContent = ''; }, 1500);
+      }
+
+      function copyToClipboard(text) {
+        if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          return navigator.clipboard.writeText(text);
+        }
+        // Fallback: a hidden textarea + execCommand.
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* noop */ }
+        document.body.removeChild(ta);
+        return Promise.resolve();
+      }
+
+      toggleBtn.addEventListener('click', function () {
+        var isPressed = toggleBtn.getAttribute('aria-pressed') === 'true';
+        if (isPressed) {
+          // Mask again
+          toggleBtn.setAttribute('aria-pressed', 'false');
+          toggleBtn.textContent = 'Reveal';
+          codeEl.textContent = 'TK-****-****-****-****-****';
+          block.classList.add('ticket-code-block--masked');
+          copyBtn.setAttribute('hidden', '');
+        } else {
+          // Reveal
+          toggleBtn.setAttribute('aria-pressed', 'true');
+          toggleBtn.textContent = 'Hide';
+          codeEl.textContent = fullCode;
+          block.classList.remove('ticket-code-block--masked');
+          copyBtn.removeAttribute('hidden');
+        }
+      });
+
+      copyBtn.addEventListener('click', function () {
+        copyToClipboard(fullCode).then(function () {
+          showConfirmation('Copied');
+        }).catch(function () {
+          showConfirmation('Copy failed');
+        });
+      });
+    });
+  });
+
+
   // ---------------------------------------------------------------------------
   // DOMContentLoaded: init all components
   // ---------------------------------------------------------------------------

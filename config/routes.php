@@ -50,4 +50,11 @@ return [
     'GET /purchases'          => ['App\Ticket\Action\PurchasesAction',   'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /listings/{id}/fragment' => ['App\Listing\Action\ListingFragmentAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /img/{listing_id}/{size}' => ['App\Support\Action\ImageProxyAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
+
+    // Phase 4 routes (Plan 04-01).
+    'POST /listings/{id}/buy' => ['App\Ticket\Action\BuyAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => 'purchase']],
+    'POST /tickets/redeem' => ['App\Ticket\Action\RedeemAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => 'redemption']],
+    'POST /tickets/{id}/confirm-session' => ['App\Ticket\Action\ConfirmSessionAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => null]],
+    'POST /tickets/{id}/dispute' => ['App\Ticket\Action\DisputeAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => null]],
+    'GET /tickets/{id}' => ['App\Ticket\Action\TicketDetailAction', 'handle', ['auth' => true, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
 ];
