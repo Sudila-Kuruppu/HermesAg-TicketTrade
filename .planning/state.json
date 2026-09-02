@@ -16,17 +16,7 @@
     {
       "number": "3",
       "name": "Marketplace Listings & Discovery",
-      "status": "verified",
-      "verified_at": "2026-09-02T01:03:12.837323+00:00",
-      "verification_report": ".planning/phases/03-marketplace-listings-discovery/03-VERIFICATION.md",
-      "verification_verdict": "PASSED",
-      "verification_score": "27/27 must-haves",
-      "verification_findings": {
-        "blockers": 0,
-        "warnings": 0,
-        "info": 0,
-        "note": "phpcs clean (0 errors) after ff0d070 phpcbf autofix commit. All must-haves verified."
-      }
+      "status": "complete"
     },
     {
       "number": "4",
@@ -60,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:discuss-phase 04",
-    "label": "Discuss Phase 04 \u2014 Purchases, Tickets & Lifecycle",
-    "reason": "Phase 3 verified PASSED 2026-09-02 (27/27 must-haves, 304/1462 tests green). workflow.skip_discuss=false and workflow.discuss_mode=discuss, so per established pattern (Phase 3 has a 03-DISCUSSION-LOG.md from a prior discuss-phase run) the next step is to discuss Phase 4 before planning. Say `skip discuss` to go straight to /gsd:plan-phase 04."
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-09-02T03:45:00.000Z"
+  "updated_at": "2026-09-02T04:47:05.727Z"
 }

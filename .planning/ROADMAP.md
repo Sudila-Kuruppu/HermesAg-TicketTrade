@@ -118,9 +118,7 @@ Plans:
 - [x] 03-03: Board view + listing modal — `/board` (corkboard + plain-grid list-view toggle, category tabs, FULLTEXT search, pagination, guest browse), listing modal (carousel, Next/Previous, keyboard nav, focus trap)
 - [x] 03-04: Landing page + hand-triggered 24h auto-approve Action — `/` landing (hero, Vision/Mission, How It Works, Team, Footer), `POST /admin/cron/ticket-expiry` Action (admin-only re-auth) implementing the 24h sweep alongside the future expiry job
 
-
 **Verification** (2026-09-02, gsd-verifier): PASSED — 27/27 must-haves verified end-to-end, 304/1462 tests green from fresh DB, all 11 ROADMAP success criteria verified, all 4 plan must-have sets (Plan 03-01 x8, 03-02 x14, 03-03 x14, 04 x8) verified, behavioral spot-checks confirm board render, search, pagination, image proxy, auto-approve cron, and landing page end-to-end. One WARNING: 22 PSR-12 style errors in Phase 3-04 landing files (auto-fixable via `vendor/bin/phpcbf`); no functional impact. See `.planning/phases/03-marketplace-listings-discovery/03-VERIFICATION.md` for the full report.
-
 
 ---
 
@@ -147,11 +145,18 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 04-01: Ticket Support primitives + migrations — `Ticket/Service` (atomic UPDATE pattern, code generation with retry loop), `Ticket/Model`, migration 004 (tickets, points_log stub), `Support\Audit` helper stub
-- [ ] 04-02: Buy Now + My Tickets — `/listings/{id}/buy` Action with confirmation modal + ticket creation, `/tickets` (My Tickets) View with mask/reveal/copy/WhatsApp, `/tickets/{id}` detail
-- [ ] 04-03: Sales page + redemption — `/sales` View with grouped tickets + quantity context, `POST /tickets/redeem` Action with atomic UPDATE + rate-limit + idempotency + UX-DR-37 error states; per-session confirmation sub-flow for services
 - [ ] 04-04: Ticket expiry + dispute filing + hand-triggered sweeps — `POST /admin/cron/ticket-expiry` Action extending Phase 3's cron Action to add ticket expiry and 3-day dispute auto-dismiss; dispute modal at `/tickets/{id}/dispute`; buyer/seller dispute Actions
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02: Buy Now + My Tickets — `/listings/{id}/buy` Action with confirmation modal + ticket creation, `/tickets` (My Tickets) View with mask/reveal/copy/WhatsApp, `/tickets/{id}` detail
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-03: Sales page + redemption — `/sales` View with grouped tickets + quantity context, `POST /tickets/redeem` Action with atomic UPDATE + rate-limit + idempotency + UX-DR-37 error states; per-session confirmation sub-flow for services
 
 ---
 
