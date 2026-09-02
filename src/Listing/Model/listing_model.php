@@ -218,22 +218,10 @@ class listing_model
      * here it is exposed so the Service can use it for state-machine
      * bookkeeping if needed.
      */
-    public static function incrementSold(int $id, int $n): int
-    {
-        $stmt = Db::pdo()->prepare('UPDATE listings SET quantity_sold = quantity_sold + ?, updated_at = NOW() WHERE id = ?');
-        $stmt->execute([$n, $id]);
-        return $stmt->rowCount();
-    }
 
     /**
      * Decrement quantity_sold atomically. Bounded by 0 (never negative).
      */
-    public static function decrementSold(int $id, int $n): int
-    {
-        $stmt = Db::pdo()->prepare('UPDATE listings SET quantity_sold = GREATEST(0, quantity_sold - ?), updated_at = NOW() WHERE id = ?');
-        $stmt->execute([$n, $id]);
-        return $stmt->rowCount();
-    }
 
     /**
      * Toggle the review_flag on an active listing edit.
@@ -255,15 +243,6 @@ class listing_model
      * applied. Used by the Service on edit-to-active to support soft-revert
      * if admin rejects the edit.
      */
-    public static function appendRevision(int $listingId, string $snapshotJson, int $createdBy): int
-    {
-        $stmt = Db::pdo()->prepare(
-            'INSERT INTO listing_revisions (listing_id, snapshot_json, created_by, created_at) '
-            . 'VALUES (?, ?, ?, NOW())'
-        );
-        $stmt->execute([$listingId, $snapshotJson, $createdBy]);
-        return (int) Db::pdo()->lastInsertId();
-    }
 
     /**
      * Group counts of listings by status for a given seller. Used by
