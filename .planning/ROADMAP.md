@@ -142,13 +142,12 @@ Plans:
   10. `points_log.event_uuid` uniqueness via `UNIQUE KEY uniq_event (event_uuid)` covers retries and closes the duplicate-NULL hole (stub writes from redemption; full points engine in Phase 6)
   11. Rate limits enforced: purchase 10/hr/user; redemption 5/hr/ticket; listing_create 20/hr/user
 
-**Plans**: 4 plans
+**Plans**: 3 plans
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01: Ticket Support primitives + migrations — `Ticket/Service` (atomic UPDATE pattern, code generation with retry loop), `Ticket/Model`, migration 004 (tickets, points_log stub), `Support\Audit` helper stub
-- [ ] 04-04: Ticket expiry + dispute filing + hand-triggered sweeps — `POST /admin/cron/ticket-expiry` Action extending Phase 3's cron Action to add ticket expiry and 3-day dispute auto-dismiss; dispute modal at `/tickets/{id}/dispute`; buyer/seller dispute Actions
+- [x] 04-01: Ticket Support primitives + migrations + Actions + partials + JS — `Ticket/Service` (atomic UPDATE pattern, code generation with retry loop), `Ticket/Model`, migration 013 (tickets + redeemed_count + reports + audit_log), `Support\Audit` helper stub, 5 ticket Actions (Buy, Redeem, ConfirmSession, Dispute, TicketDetail), 3 View partials (ticket_code_block, session_progress, status_badge), JS ticket-code-block component, 49 new tests (all green). COMPLETE 2026-09-02.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -156,7 +155,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03: Sales page + redemption — `/sales` View with grouped tickets + quantity context, `POST /tickets/redeem` Action with atomic UPDATE + rate-limit + idempotency + UX-DR-37 error states; per-session confirmation sub-flow for services
+- [ ] 04-03: Sales page + redemption + cron extension — `/sales` View with grouped tickets + quantity context, `POST /tickets/redeem` Action with atomic UPDATE + rate-limit + idempotency + UX-DR-37 error states, per-session confirmation sub-flow for services, cron Action extension for ticket-expiry + dispute auto-dismiss sweeps
+
+---
 
 ---
 
