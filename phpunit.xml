@@ -22,6 +22,12 @@
         <testsuite name="phase-3-unit">
             <directory>tests/Unit/Phase03</directory>
         </testsuite>
+        <testsuite name="phase-4-integration">
+            <directory>tests/Integration/Phase04</directory>
+        </testsuite>
+        <testsuite name="phase-4-unit">
+            <directory>tests/Unit/Phase04</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
