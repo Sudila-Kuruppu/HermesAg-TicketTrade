@@ -22,7 +22,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Phase03\Listing;
 
-use App\Listing\Action\ListingAutoApproveAction;
+use App\Admin\Action\CronAction;
 use App\Tests\Integration\Phase03\Fixtures\Fixtures;
 
 class ListingAutoApproveSweepTest extends Fixtures
@@ -47,7 +47,7 @@ class ListingAutoApproveSweepTest extends Fixtures
 
         $this->assertSame(200, $payload['status']);
         $this->assertTrue($payload['body']['ok']);
-        $this->assertSame(25, (int) $payload['body']['processed']);
+        $this->assertSame(25, (int) $payload['body']['sweeps']['listing_auto_approve']['processed']);
 
         $active = (int) $this->pdo->query("SELECT COUNT(*) FROM listings WHERE status = 'active'")->fetchColumn();
         $pending = (int) $this->pdo->query("SELECT COUNT(*) FROM listings WHERE status = 'pending'")->fetchColumn();
@@ -74,7 +74,7 @@ class ListingAutoApproveSweepTest extends Fixtures
 
         $this->assertSame(200, $payload['status']);
         $this->assertTrue($payload['body']['ok']);
-        $this->assertSame(0, (int) $payload['body']['processed']);
+        $this->assertSame(0, (int) $payload['body']['sweeps']['listing_auto_approve']['processed']);
 
         $pending = (int) $this->pdo->query("SELECT COUNT(*) FROM listings WHERE status = 'pending'")->fetchColumn();
         $this->assertSame(10, $pending);
@@ -92,11 +92,11 @@ class ListingAutoApproveSweepTest extends Fixtures
 
         $first = $this->dispatchAutoApprove($adminId);
         $this->assertSame(200, $first['status']);
-        $this->assertSame(25, (int) $first['body']['processed']);
+        $this->assertSame(25, (int) $first['body']['sweeps']['listing_auto_approve']['processed']);
 
         $second = $this->dispatchAutoApprove($adminId);
         $this->assertSame(200, $second['status']);
-        $this->assertSame(0, (int) $second['body']['processed']);
+        $this->assertSame(0, (int) $second['body']['sweeps']['listing_auto_approve']['processed']);
     }
 
     public function testSweepLogsToCronLog(): void
@@ -108,9 +108,11 @@ class ListingAutoApproveSweepTest extends Fixtures
         $this->seedListingPast($sellerId, $catId, 'Single', 25);
 
         $payload = $this->dispatchAutoApprove($adminId);
-        $this->assertSame(1, (int) $payload['body']['processed']);
+        $this->assertSame(1, (int) $payload['body']['sweeps']['listing_auto_approve']['processed']);
 
-        $rows = $this->pdo->query('SELECT job_name, processed_count, actor_user_id FROM cron_log')->fetchAll();
+        // The cron now runs all three sweeps; each writes a row. Filter
+        // by job_name so we only assert the listing.auto_approve row.
+        $rows = $this->pdo->query("SELECT job_name, processed_count, actor_user_id FROM cron_log WHERE job_name = 'listing.auto_approve'")->fetchAll();
         $this->assertCount(1, $rows);
         $this->assertSame('listing.auto_approve', $rows[0]['job_name']);
         $this->assertSame(1, (int) $rows[0]['processed_count']);
@@ -220,7 +222,7 @@ class ListingAutoApproveSweepTest extends Fixtures
                 ]));
             });
             ob_start();
-            $action = new ListingAutoApproveAction();
+            $action = new CronAction();
             $action->handle();
             // If we get here, the action did NOT call exit(); the
             // shutdown function still fires at child shutdown.

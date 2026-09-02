@@ -45,7 +45,7 @@ return [
     'POST /listings/{id}/delete' => ['App\Listing\Action\DeleteListingAction', 'handle',  ['auth' => true,  'admin' => false, 'csrf' => true,  'rate_limit' => null]],
     'POST /listings/{id}/relist' => ['App\Listing\Action\RelistListingAction', 'handle',  ['auth' => true,  'admin' => false, 'csrf' => true,  'rate_limit' => null]],
     'POST /listings/{id}/submit' => ['App\Listing\Action\SubmitDraftAction', 'handle',   ['auth' => true,  'admin' => false, 'csrf' => true,  'rate_limit' => null]],
-    'POST /admin/cron/ticket-expiry' => ['App\Listing\Action\ListingAutoApproveAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => true, 'rate_limit' => 'admin_cron']],
+    'POST /admin/cron/ticket-expiry' => ['App\Admin\Action\CronAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => true, 'rate_limit' => 'admin_cron']],
     'GET /sales'              => ['App\Ticket\Action\SalesAction',       'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /purchases'          => ['App\Ticket\Action\PurchasesAction',   'handle',     ['auth' => true,  'admin' => false, 'csrf' => false, 'rate_limit' => null]],
     'GET /listings/{id}/fragment' => ['App\Listing\Action\ListingFragmentAction', 'handle', ['auth' => false, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],

@@ -1,65 +1,35 @@
 <?php
 
 /**
- * TicketTrade — Listing\Action\ListingAutoApproveAction
+ * TicketTrade — Listing\Action\ListingAutoApproveAction (DEPRECATED)
  *
- * Phase 3 Plan 03-02. The /admin/cron/ticket-expiry endpoint.
- * Hand-triggered cron sweep: approves pending listings older than
- * 24 hours (CONTEXT D-09: Computer Crimes Act sec 26 review window).
+ * Plan 04-03 renames this Action to `App\Admin\Action\CronAction`.
+ * The cron endpoint's admin context is the canonical home per AD-2
+ * bounded contexts. This file remains as a thin deprecation shim
+ * that forwards `handle()` to the new Action. New code should use
+ * `App\Admin\Action\CronAction` directly; the shim exists for
+ * backward compatibility with Phase 3 callers and tests.
  *
- * Gating:
- *   - router opts.admin=true → non-admin gets 404 (D-10)
- *   - router opts.csrf=true  → POST must carry a CSRF token
- *   - router opts.rate_limit='admin_cron' → 5/min/IP (Plan 03-01)
- *   - Support\Auth::requireReAuth(300) → 403 JSON on stale
- *
- * Idempotency: the underlying UPDATE has no rows when run inside the
- * 24h window, so re-runs return processed=0 cleanly.
- *
- * Logging: each successful run appends a row to `cron_log` with the
- * processed count + actor user_id. Phase 9 migrates to audit_log.
+ * On any invocation it emits a one-time `error_log` warning so
+ * leftover callers are visible during the Phase 4 demo.
  */
 
 declare(strict_types=1);
 
 namespace App\Listing\Action;
 
-use App\Listing\Service\listing_service;
-use App\Support\Auth as AuthGuard;
+use App\Admin\Action\CronAction;
 
 class ListingAutoApproveAction
 {
     /**
-     * POST /admin/cron/ticket-expiry
+     * POST /admin/cron/ticket-expiry (deprecated entrypoint).
+     *
+     * Forwards to `App\Admin\Action\CronAction::handle()`.
      */
     public function handle(): void
     {
-        // Router has already enforced admin + csrf + admin_cron rate
-        // limit by the time we get here. Re-check re-auth freshness.
-        $user = AuthGuard::requireReAuth(300);
-        $userId = (int) ($user['user_id'] ?? 0);
-
-        $result = listing_service::runAutoApproveSweep($userId);
-
-        // Emit JSON regardless of processed count; failures emit 500.
-        if ($result['ok'] === true) {
-            $data = $result['data'] ?? ['processed' => 0, 'errors' => []];
-            http_response_code(200);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'ok' => true,
-                'processed' => (int) ($data['processed'] ?? 0),
-                'errors' => (array) ($data['errors'] ?? []),
-            ]);
-            exit;
-        }
-
-        http_response_code(500);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'ok' => false,
-            'error' => $result['error'] ?? ['code' => 'E_INTERNAL', 'message' => 'Sweep failed.'],
-        ]);
-        exit;
+        error_log('[cron] deprecated route hit: App\\Listing\\Action\\ListingAutoApproveAction — use App\\Admin\\Action\\CronAction');
+        (new CronAction())->handle();
     }
 }
