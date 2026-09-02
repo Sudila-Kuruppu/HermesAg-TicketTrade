@@ -652,7 +652,8 @@ class ticket_service
             $affected = [];
             $upd = $pdo->prepare(
                 "UPDATE tickets SET dispute_status = 'rejected', "
-                . "status = CASE WHEN status = 'active' THEN 'active' "
+                . "status = CASE "
+                . "WHEN status IN ('active', 'disputed') THEN 'active' "
                 . "WHEN status = 'redeemed' THEN 'redeemed' "
                 . "ELSE status END, "
                 . "updated_at = NOW() "
