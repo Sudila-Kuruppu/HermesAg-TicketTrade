@@ -60,9 +60,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:plan-phase 04",
-    "label": "Plan Phase 4 \u2014 Purchases, Tickets & Lifecycle",
-    "reason": "Phase 3 verified PASSED 2026-09-02 (27/27 must-haves, 304/1462 tests green). Ready to plan Phase 4: Buy Now flow, ticket generation (TK-XXXXXXXXXXXXXXXXXXXXXX format), 7-day expiry, dispute flow, per-session service handover."
+    "command": "/gsd:discuss-phase 04",
+    "label": "Discuss Phase 04 \u2014 Purchases, Tickets & Lifecycle",
+    "reason": "Phase 3 verified PASSED 2026-09-02 (27/27 must-haves, 304/1462 tests green). workflow.skip_discuss=false and workflow.discuss_mode=discuss, so per established pattern (Phase 3 has a 03-DISCUSSION-LOG.md from a prior discuss-phase run) the next step is to discuss Phase 4 before planning. Say `skip discuss` to go straight to /gsd:plan-phase 04."
   },
-  "updated_at": "2026-09-02T01:03:12.837323+00:00"
+  "updated_at": "2026-09-02T03:45:00.000Z"
 }
