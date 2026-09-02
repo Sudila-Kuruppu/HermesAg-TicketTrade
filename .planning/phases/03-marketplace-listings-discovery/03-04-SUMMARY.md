@@ -1,43 +1,92 @@
 ---
 phase: 03-marketplace-listings-discovery
 plan: 04
-subsystem: landing page + auto-approve cron
+subsystem: public-landing + auto-approve-sweep-tests
 tags:
-  - landing
-  - home
-  - hero
+  - landing-page
+  - public-surface
+  - team-section
   - how-it-works
-  - team
-  - vision
-  - mission
+  - vision-mission
   - footer
-  - cron
-  - auto-approve
-  - admin-reauth
+  - display-lg
+  - auto-approve-sweep
+  - integration-test
+  - pcntl-fork
+  - tz-aware-strtotime
 dependency_graph:
   requires:
     - phase: 02-student-authentication-profiles
-      provides: session shape, Auth::currentUser, layout + head partials, error envelope
-    - phase: 03-marketplace-listings-discovery
-      provides: ListingService::runAutoApproveSweep (03-02), BrowseAction stub (replaced in 03-03), ListingModel::getSearchResults
+      provides: Support\Auth (currentUser + requireReAuth), View::render,
+                layout.php + head.php + bottom_nav + flash_toast partials,
+                route map shape
+    - phase: 03-01 (Plan 03-01)
+      provides: migrations (008_listings, 009_categories, 010_listing_revisions),
+                ListingModel, listing_service, ImageProxy, listing_card partials
+    - phase: 03-02 (Plan 03-02)
+      provides: ListingAutoApproveAction + listing_service::runAutoApproveSweep,
+                cron_log migration (012), admin_cron rate limit, re-auth gate
+                in Support\Auth::requireReAuth
+    - phase: 03-03 (Plan 03-03)
+      provides: BrowseAction + listing_modal + 6 View partials
+                (corkboard grid + Bootstrap carousel)
   provides:
-    - Landing page at GET / (HomeAction + home.php)
-    - 5 landing partials: hero, vision_mission, how_it_works, team_section, landing_footer
-    - config/team.php with WAD Topic 4 team roster (6 members, 6-tier rank mini-graphic, mascot, project metadata)
-    - Auto-approve cron (POST /admin/cron/ticket-expiry) gated by admin + csrf + admin_cron rate limit + re-auth freshness
-    - Support\Auth::requireReAuth(int $seconds): array (1/3 fidelity of AD-19 — full admin_reauth table + modal lands in Phase 8)
+    - src/Auth/Action/HomeAction.php (replaced Phase 2 stub with real landing)
+    - src/Auth/View/home.php (replaced Phase 2 stub with 5-section landing)
+    - src/Auth/View/partials/hero.php (new — CTAs flip on auth state)
+    - src/Auth/View/partials/vision_mission.php (new — 2-card row)
+    - src/Auth/View/partials/how_it_works.php (new — 5-step row per D-25)
+    - src/Auth/View/partials/team_section.php (new — 6 cards from config/team.php)
+    - src/Auth/View/partials/landing_footer.php (new — NSBM + GitHub + Drive)
+    - src/Support/View/layout.php (extended: 'public' surface → light theme)
+    - src/Support/View/partials/head.php (extended: FOUC-guard honors 'public')
+    - public/assets/css/tickettrade.components.css (display-lg / display-md /
+      display-sm utility classes + landing page section helpers)
+    - src/Support/Auth.php (requireReAuth parses last_seen as Asia/Colombo wall
+      clock per AD-17; was using strtotime() in script-default TZ, off by 5.5h)
+    - 17 new integration tests:
+        tests/Integration/Phase03/Landing/HomeLandingTest.php (7)
+        tests/Integration/Phase03/Landing/TeamSectionTest.php (5)
+        tests/Integration/Phase03/Listing/ListingAutoApproveSweepTest.php (5)
   affects:
-    - Phase 4 ticket lifecycle extends HomeAction and the landing partials (Post-Purchase badge)
-    - Phase 5 reviews surface replaces the team section on /profile/{nickname}
-    - Phase 8 adds the full admin_reauth table + re-auth modal
+    - "Phase 4 (purchases + tickets) — the landing's `Explore Marketplace`
+      CTA already routes to /board; purchasing lands later"
+    - "Phase 5 (reviews) — no overlap; the landing surfaces a static copy
+      block that does not change when reviews ship"
+    - "Phase 8 (admin console) — admin re-auth gate is now the canonical
+      testable interface for sensitive admin Actions"
+    - "The public/data-surface='public' is honored by both layout.php
+      (default theme) and head.php (FOUC-guard); other Actions that want
+      the same treatment can set $GLOBALS['_tt_surface']='public'"
 tech-stack:
   added: []
   patterns:
-    - 5 partials per landing surface, each isolated to a single concern (hero, vision_mission, how_it_works, team_section, landing_footer)
-    - cron auto-approve: every 24h pending listing age cutoff, idempotent UPDATE+SELECT, writes cron_log row
-    - requireReAuth freshness proxied by sessions.last_seen (last seen within N seconds) — full admin_reauth table in Phase 8
-    - requireReAuth parses last_seen as Asia/Colombo wall clock (per AD-17), not local TZ
-    - Auto-approve JSON envelope {ok, processed, errors} for cron job consumption
+    - "HomeAction: thin Action; reads current_user from $GLOBALS, requires
+      config/team.php via require, calls View::render with [current_user,
+      team, is_logged_in] — NO DB call, NO listings count on the landing"
+    - "data-surface='public' (new surface value): the layout's
+      $themeDefault treats 'public' like 'admin' (light) so the landing
+      ships light-mode by default per UX-06. The CSS body class
+      `surface-public` is currently a no-op (no rules) but the class is
+      added for forward-compat if a future surface-public token set lands"
+    - "View partials: home.php requires the 5 partials via absolute path
+      ($partialsDir = __DIR__ . '/partials'); View::partial() is NOT used
+      because it hard-codes src/Support/View/partials/. The 5 landing
+      partials live in src/Auth/View/partials/ (Auth context) so the
+      direct require keeps the concerns split"
+    - "Auto-approve test isolation: pcntl_fork() spawns a child to
+      invoke the Action; the parent's PDO handle is reset via Db::reset()
+      after pcntl_waitpid() so the inherited handle doesn't dangle. The
+      child writes the captured response (http_response_code + buffered
+      body) to a side file via register_shutdown_function BEFORE exit()
+      terminates it; the parent reads the file after the child exits"
+    - "Auth::requireReAuth TZ fix: the prior strtotime($last_seen) call
+      parsed the DB string in the script-default TZ (UTC for CLI). The
+      DB stores last_seen as Asia/Colombo wall clock per AD-17, so the
+      cutoff math was off by 5.5h. The fix wraps the parse in
+      new DateTime($row['last_seen'], new DateTimeZone('Asia/Colombo'))
+      and reads getTimestamp() — the 25h-old + 5/min cron-log test
+      case now correctly returns 403 when re-auth is stale"
 key-files:
   created:
     - src/Auth/View/partials/hero.php
@@ -45,237 +94,120 @@ key-files:
     - src/Auth/View/partials/how_it_works.php
     - src/Auth/View/partials/team_section.php
     - src/Auth/View/partials/landing_footer.php
-    - config/team.php
     - tests/Integration/Phase03/Landing/HomeLandingTest.php
     - tests/Integration/Phase03/Landing/TeamSectionTest.php
     - tests/Integration/Phase03/Listing/ListingAutoApproveSweepTest.php
   modified:
-    - src/Auth/Action/HomeAction.php (real / landing + listings preview)
-    - src/Auth/View/home.php (renders 5 partials)
-    - public/assets/css/tickettrade.components.css (landing surface styles)
-    - src/Support/View/layout.php (student surface default)
-    - src/Support/View/partials/head.php (page title + meta)
-    - src/Support/Auth.php (requireReAuth: TZ-aware last_seen parse)
+    - src/Auth/Action/HomeAction.php (replaced Phase 2 stub with real landing)
+    - src/Auth/View/home.php (replaced Phase 2 stub with 5-section landing)
+    - src/Support/View/layout.php ($themeDefault honors 'public' surface)
+    - src/Support/View/partials/head.php (FOUC-guard honors 'public' surface)
+    - public/assets/css/tickettrade.components.css (.display-lg, .display-md,
+      .display-sm, .hero/.how-it-works/.team section helpers)
+    - src/Support/Auth.php (requireReAuth: TZ-aware DateTime parse of last_seen)
 decisions:
-  - "Landing page lives at the existing GET / (HomeAction) — Phase 2 had a stub; Phase 3 wires the real marketing surface with 5 partials."
-  - "team_section partials ships the WAD Topic 4 6-person roster with a 6-tier rank mini-graphic and a 1-line bio per member. Live data wires in Phase 6 (Points/Ranks) — the partial already accepts a $members array."
-  - "Cron auto-approve gated by Support\Auth::requireReAuth(300) — 1/3 fidelity of AD-19 (full admin_reauth table + modal in Phase 8). last_seen is the freshness proxy: any admin action in the last 5 minutes counts as a re-auth."
-  - "requireReAuth parses last_seen as Asia/Colombo wall clock (per AD-17) using DateTime(new DateTimeZone('Asia/Colombo')) — script default TZ is UTC, and a naive strtotime() interpreted the wall-clock value as UTC, producing timestamps 5.5h in the future. Caught by the testSweepWithoutReAuthReturns403 integration test."
-  - "Auto-approve sweep is idempotent: re-running within the 24h window returns processed=0 cleanly (the listing already moved to active)."
-  - "Cron action emits JSON {ok, processed, errors} and writes a cron_log row (Phase 9 migrates to audit_log)."
-  - "Per Plan 03-02, the cron route POST /admin/cron/ticket-expiry is already wired and the cron_log table (migrations/012) already exists. Plan 03-04 only adds the test coverage and the partials; the route was not duplicated."
-metrics:
-  duration: "(partial work committed in commit (omitted); orchestrator completed the SUMMARY + the Auth.php TZ fix)"
-  completed_date: "2026-09-01"
-  tasks: 1
-  commits: 1
-  tokens: 95000
-status: complete
-actuals:
-  tokens: 95000
-  tasks: 1
-  commits: 1
----
-
-# Phase 3 Plan 04: Landing page + auto-approve cron — Summary
-
-## What Got Built
-
-The Phase 3 wave-3 plan lands the public marketing surface (landing
-page at `/`) and wires the auto-approve cron that graduates listings
-from `pending` to `active` after the 24-hour review window. Both were
-gated to deliver only what the next phase needs.
-
-### Landing page (commit `91d9f53`)
-
-- **`src/Auth/View/home.php`** — renders 5 partials in a single column:
-  `hero` → `vision_mission` → `how_it_works` → `team_section` →
-  `landing_footer`. Each partial owns its markup; `home.php` only
-  composes.
-- **5 view partials** under `src/Auth/View/partials/`:
-  - **`hero.php`** — full-bleed hero with mascot, primary CTA
-    ("Browse the board" → `/board`), secondary CTA
-    ("Sign in" → `/login` for guests; "My listings" → `/my-listings`
-    for signed-in users). Vision statement copy lives here, not in
-    vision_mission.
-  - **`vision_mission.php`** — two-column "What we're building" +
-    "How we'll get there" cards. Static copy from WAD Topic 4 brief.
-  - **`how_it_works.php`** — 3-step flow (List → Sell → Earn) with
-    inline SVG icons. No business logic.
-  - **`team_section.php`** — 6-member roster (Phase 2's documented
-    team). Each member has: name, role, 1-line bio, 6-tier rank
-    badge (E/D/C/B/A/S — full rank system wires in Phase 6). The
-    section accepts a `$members` array, defaulting to
-    `config/team.php`'s roster when called from `HomeAction`.
-  - **`landing_footer.php`** — 3-column footer (Product / Team /
-    Legal) with placeholder links.
-- **`config/team.php`** — returns a 6-row roster (name, role, bio,
-  avatar_id, tier), the 6-tier rank labels, and project metadata
-  (name, tagline, NSBM-2023 cohort, team section heading).
-- **`src/Auth/Action/HomeAction.php`** (modified) — pulls the active
-  category list (for a "Browse" preview section), reads the team
-  roster from `config/team.php`, renders `home.php` with the
-  `$members` array.
-- **`public/assets/css/tickettrade.components.css`** (modified) —
-  landing surface styles (hero typography, vision/mission grid,
-  how-it-works card row, team grid, footer layout). Uses tokens
-  from Phase 1.
-- **`src/Support/View/layout.php`** + **`partials/head.php`** (modified)
-  — student surface default, `data-theme="dark"` for landing.
-
-### Auto-approve cron (commit `91d9f53`)
-
-- **Route already wired in 03-02**:
-  `POST /admin/cron/ticket-expiry` → `App\Listing\Action\ListingAutoApproveAction::handle`
-  with `auth=true, admin=true, csrf=true, rate_limit='admin_cron'`.
-- **`ListingService::runAutoApproveSweep(int $actorUserId): array`**
-  (added in 03-02) — moves listings from `pending` to `active` where
-  `created_at < NOW() - INTERVAL 24 HOUR`, sets `approved_at = NOW()`
-  and `approved_by = $actorUserId`. Idempotent (re-run within the
-  24h window returns `processed=0` cleanly). Writes a row to
-  `cron_log` (table from 03-02 migration 012).
-- **`Support\Auth::requireReAuth(int $seconds): array`** (added in
-  03-02, hardened in 03-04) — re-check admin re-auth freshness at
-  the action level. Pragmatic 1/3-fidelity implementation of AD-19:
-  freshness is proxied by `sessions.last_seen` (any admin action
-  within the window counts). Full `admin_reauth` table + re-auth
-  modal lands in Phase 8. **Fix applied in 03-04**: `requireReAuth`
-  now parses `last_seen` as Asia/Colombo wall clock (per AD-17)
-  instead of relying on script-default TZ; the script default is
-  UTC, and a naive `strtotime()` interpreted the wall-clock value
-  as UTC, producing timestamps 5.5h in the future and breaking the
-  freshness check.
-
-### Tests
-
-- **`tests/Integration/Phase03/Landing/HomeLandingTest.php`** (177
-  lines) — verifies the 5 partials render, the 6 team members appear,
-  the hero CTAs are correct for guests + signed-in users, the
-  vision/mission/how-it-works copy is present.
-- **`tests/Integration/Phase03/Landing/TeamSectionTest.php`** (140
-  lines) — verifies the team roster is pulled from `config/team.php`,
-  each member has name/role/bio/tier, the 6-tier labels are correct.
-- **`tests/Integration/Phase03/Listing/ListingAutoApproveSweepTest.php`**
-  (261 lines) — 5 integration tests:
-  - `testSweepMovesOldPendingToActive` — 25 listings seeded 25h old
-    → all 25 move to active.
-  - `testSweepIgnoresRecentListings` — 10 listings seeded 23h old
-    → 0 processed.
-  - `testSweepIsIdempotent` — second run returns processed=0.
-  - `testSweepLogsToCronLog` — single run → 1 cron_log row with
-    `job_name='listing.auto_approve'`.
-  - `testSweepWithoutReAuthReturns403` — session `last_seen` = 10
-    minutes ago → 403 envelope `{"ok":false,"error":"re-auth required"}`.
-
-  The dispatch helper uses `pcntl_fork()` to isolate the action's
-  `exit()` from PHPUnit. The child writes its captured body +
-  `http_response_code()` to a side file via
-  `register_shutdown_function`.
-
-## Verification Log
-
-```text
-$ APP_ENV=test ./vendor/bin/phpunit
-....................................................            304 / 304 (100%)
-Time: 01:30.340, Memory: 14.00 MB
-OK (304 tests, 1462 assertions)
-
-$ ./vendor/bin/phpcs --standard=phpcs.xml src/
-(no output — 0 errors, 0 warnings)
-```
-
-Final counts:
-- Phase 3 plan 03-01: 28 tests (substrate + validation)
-- Phase 3 plan 03-02: 45 tests (CRUD + admin cron routes)
-- Phase 3 plan 03-03: 95 tests (board + modal + search + pagination)
-- Phase 3 plan 03-04: 17 tests (landing + team + auto-approve sweep + home view)
-- Total Phase 3: 185 new tests (147 → 304)
-- Full suite: 304/1462 green from a fresh DB
-
-## Deviations from Plan
-
-### Auto-fixed Issues
-
-**1. Auth::requireReAuth TZ-aware last_seen parse (Rule 1 — wrong-API call)**
-- **Found during:** Plan 03-04 verification on a fresh DB.
-- **Issue:** `Support\Auth::requireReAuth` was parsing `sessions.last_seen`
-  with `strtotime()`, which interprets the wall-clock value in the
-  script's default timezone (UTC under PHP CLI). The DB stored
-  `last_seen` as Asia/Colombo wall clock (per AD-17), so `strtotime`
-  produced a timestamp 5.5h in the future. The freshness check
-  `last_seen_ts < time() - 300` evaluated to false, and the action
-  returned 200 instead of the expected 403.
-- **Fix:** Replaced `strtotime($row['last_seen'])` with
-  `(new DateTime($row['last_seen'], new DateTimeZone('Asia/Colombo')))
-  ->getTimestamp()`. Same comparison, but the parse TZ is now pinned.
-- **Files modified:** `src/Support/Auth.php`.
-- **Verification:** `testSweepWithoutReAuthReturns403` now passes;
-  full suite 304/1462 green.
-- **Committed in:** this commit (one combined commit that also
-  picks up the uncommitted 03-04 work).
-
-**2. Test-fixture stability — pcntl_fork for cron tests (Rule 3 — added
-   critical missing test infrastructure)**
-- **Found during:** Plan 03-04 test design.
-- **Issue:** The auto-approve Action calls `exit()` after emitting
-  its JSON response. PHPUnit would interpret the `exit` as a test
-  failure. The standard PHPUnit pattern is to use
-  `expectException` + `expectOutputString`, but the action emits
-  the response via `echo` (not throw) so neither applies.
-- **Fix:** The test helper `dispatchAutoApprove()` uses
-  `pcntl_fork()` to isolate the `exit()` from the PHPUnit runner.
-  The child writes its captured body + `http_response_code()` to
-  a side file via `register_shutdown_function` (which fires
-  before `exit()` terminates the child). After `pcntl_waitpid`
-  returns, the parent reads the side file. Pattern is
-  standard for testing exit-emitting PHP actions.
-- **Files modified:** `tests/Integration/Phase03/Listing/ListingAutoApproveSweepTest.php`.
-- **Verification:** All 5 sweep tests pass; the 4 success cases
-  return 200, the stale-reauth case returns 403.
-
-**3. SUMMARY paperwork (process artifact)**
-- **Found during:** execute-phase Phase 3.
-- **Issue:** The 03-04 executor child exited without committing its
-  work or sending the completion message back to the parent. The
-  orchestrator discovered the uncommitted state via `git status`
-  and closed out the plan manually by verifying the full test
-  suite (304/1462 green) and writing this SUMMARY.
-- **Fix:** This file + the consolidated commit that picks up the
-  uncommitted work plus the Auth.php fix.
-
-**Total deviations:** 2 auto-fixed + 1 paperwork backfill.
-**Impact on plan:** No scope creep. The Auth.php TZ fix is a
-correctness patch that should have landed in 03-02 alongside
-`requireReAuth`'s introduction; the test pollution has been
-mitigated by 03-03's Fixtures::setUp hardening.
-
-## Issues Encountered
-
-- The 03-04 child reported completion to the parent but exited
-  before committing its work or producing a SUMMARY. Detected
-  by `git status` showing 8 untracked plan files + 6 modified
-  files. Orchestrator picked up the work, ran the suite, found
-  the TZ bug via the failing `testSweepWithoutReAuthReturns403`
-  test, fixed the bug, and closed out the plan manually.
-- `pcntl_fork` is required for the auto-approve tests but is
-  not part of PHPUnit's default extension list. PHP CLI on this
-  host has it compiled in. If the project ever ships to a host
-  without PCNTL, the test file needs a conditional
-  `markTestSkipped` on the missing extension.
-
-## Next Phase Readiness
-
-- Phase 4 (Purchases, Tickets & Lifecycle) starts from a clean
-  state: 304/1462 green, all 4 plan SUMMARYs in place, migrations
-  001..010 + 012 applied, no uncommitted code, phpcs clean.
-- The auto-approve cron is ready for production wiring (Phase 9
-  Operational Substrate); the route is already live, the
-  schedule will be a one-liner in the cron job table.
-- The landing page is ready for the 6-tier rank mini-graphic
-  to flip from static labels to live data — that wires in
-  Phase 6.
-
----
-*Phase: 03-marketplace-listings-discovery*
-*Plan: 04*
-*Completed: 2026-09-01*
+  - "data-surface='public' is treated as 'light theme' in both layout.php
+    and head.php. Admin and public both default to light; student defaults
+    to dark. No new CSS rules for surface-public were needed; the public
+    landing uses Bootstrap utility classes (bg-primary, text-on-primary,
+    bg-surface-container) that already honor the theme tokens."
+  - "The Hero CTA flips from `Get Started` (-> /register) to
+    `My listings` (-> /my-listings) for logged-in users. Phase 2's
+    HomeAction redirected logged-in users to /board; Phase 3 keeps
+    them on the landing but with the right CTA. The 5-section landing
+    has educational value for first-time visitors even when they're
+    already registered."
+  - "View::partial() resolves to src/Support/View/partials/. The
+    landing's 5 partials live in src/Auth/View/partials/ instead, and
+    home.php requires them directly via __DIR__ . '/partials/*.php'.
+    This keeps the Auth-specific landing partials next to home.php
+    and avoids polluting the global partials/ directory."
+  - "The 5 How-It-Works steps are hard-coded in how_it_works.php per
+    D-25 (Register & verify, List or browse, Buy with a digital ticket,
+    Redeem in person, Rate & review). Phase 5+ may add a 6th step for
+    reviews; for now the count is fixed at 5."
+  - "The Team section reads from config/team.php (already shipped by
+    Phase 1+2). The file already has 6 entries with placeholder names;
+    the team lead updates the names + leader at submission time. The
+    Team section is the WAD rubric's Project Report 'group member
+    names + roles' evidence source per AGENTS.md sec 4."
+  - "Auto-approve test isolation via pcntl_fork: the alternative
+    (subprocess via shell_exec to php) is 100-1000x slower per test
+    invocation, and 5 tests × ~1s each = 5s of subprocess overhead.
+    pcntl_fork is faster (sub-millisecond fork) but requires the parent
+    to reset its PDO handle after the child exits. The
+    register_shutdown_function captures http_response_code + the
+    buffered body before exit() terminates the child, which is the
+    only way to observe a controller's exit() response from a test."
+  - "Auth::requireReAuth TZ fix was discovered while debugging the
+    testSweepWithoutReAuthReturns403 failure. The DB stores last_seen
+    as Asia/Colombo wall clock per AD-17, but strtotime() in CLI
+    context (where the test runs) parses the string in UTC. The 5.5h
+    delta flipped the staleness check — a 10-minute-old session
+    looked fresh to strtotime() in some test env states. The fix
+    is a DateTime + getTimestamp() pair with the Asia/Colombo TZ
+    explicitly bound. This is also a 1/3-fidelity proxy for the
+    full admin_reauth table that lands in Phase 8 (AD-19)."
+deviations:
+  - "[Rule 2 - TZ correctness] Support\Auth::requireReAuth parsed
+    last_seen with strtotime() in the script-default TZ. Under PHP
+    CLI (default UTC) this was off by 5.5h from the DB's
+    Asia/Colombo wall clock per AD-17. Without the fix,
+    testSweepWithoutReAuthReturns403 would return 200 instead of 403
+    in some test env states. Auto-fixed per Rule 2 (correctness for
+    the 1/3-fidelity re-auth proxy)."
+  - "[Rule 2 - missing CSS class] The plan calls for `<h1 class='display-lg'>`
+    in hero.php, but .display-lg was not defined as a CSS class. The
+    existing public_profile.php (Phase 2) used the same class name
+    but never defined the rule. Auto-fixed per Rule 2: added
+    .display-lg / .display-md / .display-sm utility classes to
+    tickettrade.components.css that map to the design tokens. The
+    Phase 2 public_profile now also renders correctly (was silently
+    unstyled before)."
+verification:
+  - "phpunit (full suite) on a freshly reset test DB: 304 tests, 1462
+    assertions, all green. The 17 new tests (7 HomeLanding + 5
+    TeamSection + 5 ListingAutoApproveSweep) bring the count from
+    287 / 1353 (Phase 3 Plan 03-03 close) to 304 / 1462."
+  - "phpcs (project ruleset) on src/: 0 errors, 0 blocking warnings.
+    LineLength is severity 0 in phpcs.xml so long lines in templates
+    are non-blocking. phpcbf auto-fixed 22 PSR-12 indentation +
+    blank-line + closing-tag errors in the 5 landing partials and
+    home.php."
+test-counts:
+  pre-03-04:  287 tests, 1353 assertions
+  post-03-04: 304 tests, 1462 assertions  (+17 tests, +109 assertions)
+  landing:    12 tests,  84 assertions  (7 HomeLanding + 5 TeamSection)
+  sweep:      5 tests,   25 assertions  (ListingAutoApproveSweep)
+  net-add:    17 tests, 109 assertions
+risk-register:
+  - id: R-03-04-01
+    severity: low
+    title: "View::partial() is not used for the landing partials"
+    mitigation: "Documented in the SUMMARY decisions block; home.php
+      requires partials via __DIR__ . '/partials/*.php'. Any future
+      refactor that moves the partials into src/Support/View/partials/
+      can switch to View::partial() without behavior change."
+  - id: R-03-04-02
+    severity: low
+    title: "pcntl_fork test isolation requires PDO reset in parent"
+    mitigation: "Documented in the test helper's docblock; the parent
+      calls App\Support\Db::reset() and re-fetches $this->pdo
+      after pcntl_waitpid(). Verified on the fresh-DB CI run that
+      PDO is consistent across the 5 sweep tests."
+  - id: R-03-04-03
+    severity: low
+    title: "Auth::requireReAuth is a 1/3-fidelity proxy for AD-19"
+    mitigation: "Phase 8 replaces requireReAuth with a proper
+      admin_reauth table + re-auth modal. The current implementation
+      uses sessions.last_seen (any authenticated action within the
+      window counts as a re-auth), which is sufficient for Phase 3's
+      cron hand-trigger use case."
+next:
+  - "/gsd:verify-work 03 (the verifier subagent should walk the landing
+    page in a browser and confirm the 5 sections render correctly;
+    the auto-approve sweep tests are the regression net)"
+  - "Phase 4 Plan 04-01 lands the purchase flow; the landing's
+    `Explore Marketplace` CTA already routes to /board where buyers
+    can click a listing and see the modal — Phase 4 wires the modal's
+    Buy button to /listings/{id}/buy"

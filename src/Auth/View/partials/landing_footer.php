@@ -7,6 +7,7 @@
  * GitHub + Drive links (placeholders — the team lead updates these
  * at submission time per WAD_Batch26.md sec 4).
  */
+
 ?>
 <footer class="landing-footer bg-surface-container py-4" aria-labelledby="landing-footer-heading">
   <div class="container text-center">

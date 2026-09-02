@@ -18,4 +18,4 @@ $partialsDir = __DIR__ . '/partials';
 <?php require $partialsDir . '/vision_mission.php'; ?>
 <?php require $partialsDir . '/how_it_works.php'; ?>
 <?php require $partialsDir . '/team_section.php'; ?>
-<?php require $partialsDir . '/landing_footer.php'; ?>
+<?php require $partialsDir . '/landing_footer.php';
