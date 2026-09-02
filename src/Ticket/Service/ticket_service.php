@@ -528,4 +528,76 @@ class ticket_service
         }
         return $ticket;
     }
+
+    /**
+     * Read-only helper for MyTicketsAction (Phase 4 Plan 04-02).
+     * Returns the buyer's tickets filtered by the tab (?tab=).
+     * Also returns the per-tab counts so the View can render
+     * the All/Active/Redeemed/Expired/Disputed counts in the header.
+     *
+     * @param string $tab One of: all, active, redeemed, expired, disputed.
+     * @return array{tickets: array<int, array<string,mixed>>, tab_counts: array<string, int>, tab: string}
+     */
+    public static function getTicketsForBuyer(int $buyerId, string $tab): array
+    {
+        $allowed = ['all', 'active', 'redeemed', 'expired', 'disputed'];
+        if (!in_array($tab, $allowed, true)) {
+            $tab = 'active';
+        }
+        $pdo = Db::pdo();
+        $tickets = ticket_model::findByBuyerAndStatus($pdo, $buyerId, $tab);
+
+        // Compute per-tab counts in a single query for efficiency.
+        $countsStmt = $pdo->prepare(
+            "SELECT "
+            . "SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_count, "
+            . "SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) AS redeemed_count, "
+            . "SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) AS expired_count, "
+            . "SUM(CASE WHEN status = 'disputed' THEN 1 ELSE 0 END) AS disputed_count "
+            . "FROM tickets WHERE buyer_id = ?"
+        );
+        $countsStmt->execute([$buyerId]);
+        $countsRow = $countsStmt->fetch();
+        $tabCounts = [
+            'all' => 0,
+            'active' => (int) ($countsRow['active_count'] ?? 0),
+            'redeemed' => (int) ($countsRow['redeemed_count'] ?? 0),
+            'expired' => (int) ($countsRow['expired_count'] ?? 0),
+            'disputed' => (int) ($countsRow['disputed_count'] ?? 0),
+        ];
+        $tabCounts['all'] = $tabCounts['active'] + $tabCounts['redeemed'] + $tabCounts['expired'] + $tabCounts['disputed'];
+
+        return [
+            'tickets' => $tickets,
+            'tab_counts' => $tabCounts,
+            'tab' => $tab,
+        ];
+    }
+
+    /**
+     * Read-only helper for SalesAction (Phase 4 Plan 04-02). Returns
+     * the seller's tickets grouped by listing for the per-listing-group
+     * placement (D-05). Each group carries `listing_id`, `listing_title`,
+     * `tickets[]`.
+     *
+     * @return array<int, array<string,mixed>> List of group rows.
+     */
+    public static function getGroupedSales(int $sellerId): array
+    {
+        $pdo = Db::pdo();
+        return ticket_model::findGroupedSales($pdo, $sellerId);
+    }
+
+    /**
+     * Read-only helper for PurchasesAction (Phase 4 Plan 04-02). Returns
+     * the buyer's purchase history joined with listing title and seller
+     * info, sorted by created_at DESC.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function getPurchaseHistory(int $buyerId): array
+    {
+        $pdo = Db::pdo();
+        return ticket_model::findPurchaseHistory($pdo, $buyerId);
+    }
 }

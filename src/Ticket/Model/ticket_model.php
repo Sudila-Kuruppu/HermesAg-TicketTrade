@@ -94,8 +94,13 @@ class ticket_model
         // 4-char groups; take the first 6 groups (96 bits entropy from
         // random_bytes(16)). The visual code length is exactly the PRD
         // canonical example `TK-XXXX-XXXX-XXXX-XXXX-XXXX` = 26 chars.
+        // 5 hex groups (4 chars each) = 20 hex chars = 80 bits input.
+        // Each 4-hex group encodes 16 bits (0..65535); 4 base62 chars
+        // can represent any 16-bit value. Result: 5 base62 groups
+        // (20 base62 chars total) + 'TK-' prefix = 27 chars total,
+        // matching the PRD canonical example TK-7QXK2M9WBV4N8PRTYC3AD.
         $parts = [];
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 5; $i++) {
             $g = $groups[$i];
             $n = hexdec($g);
             $out = '';
@@ -254,6 +259,123 @@ class ticket_model
     }
 
     /**
+     * Find all buyer tickets filtered by status, sorted by created_at DESC.
+     * Used by the My Tickets tab filter (D-02 / Phase 4).
+     *
+     * @param string $status One of: all, active, redeemed, expired, disputed.
+     *   'all' returns every ticket; 'active' returns status='active';
+     *   'redeemed' returns status='redeemed'; 'expired' returns
+     *   status='expired'; 'disputed' returns status='disputed'.
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findByBuyerAndStatus(PDO $pdo, int $buyerId, string $status): array
+    {
+        $statusMap = [
+            'active' => "t.status = 'active'",
+            'redeemed' => "t.status = 'redeemed'",
+            'expired' => "t.status = 'expired'",
+            'disputed' => "t.status = 'disputed'",
+        ];
+        $where = $statusMap[$status] ?? null;
+        if ($where === null) {
+            // 'all' or unknown — return every ticket.
+            return self::findByBuyer($pdo, $buyerId);
+        }
+        $sql = "SELECT t.*, l.title AS listing_title "
+            . "FROM tickets t JOIN listings l ON l.id = t.listing_id "
+            . "WHERE t.buyer_id = ? AND " . $where . " "
+            . "ORDER BY t.created_at DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$buyerId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Per-status purchase-history view: returns tickets joined with
+     * listing title and seller nickname, ordered by created_at DESC.
+     * Used by PurchasesAction::handle() per Phase 4 Plan 04-02.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findPurchaseHistory(PDO $pdo, int $buyerId): array
+    {
+        $sql = "SELECT t.id, t.ticket_code, t.listing_id, t.buyer_id, t.seller_id, "
+            . "t.status, t.dispute_status, t.price_cents, t.session_number, t.total_sessions, "
+            . "t.created_at, t.expires_at, t.redeemed_at, t.disputed_at, "
+            . "l.title AS listing_title, u.nickname AS seller_nickname, "
+            . "u.tier AS seller_tier "
+            . "FROM tickets t "
+            . "JOIN listings l ON l.id = t.listing_id "
+            . "JOIN users u ON u.user_id = t.seller_id "
+            . "WHERE t.buyer_id = ? "
+            . "ORDER BY t.created_at DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$buyerId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Group seller tickets by listing_id, ordered by listing.created_at DESC.
+     * Returns an array of groups (not a map) so the Sales View can iterate
+     * in the order listings were created. Each group carries listing_id,
+     * listing_title, listing_type, listing_quantity, total_sessions (derived
+     * from the ticket rows for that listing), and the ticket rows.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findGroupedSales(PDO $pdo, int $sellerId): array
+    {
+        $sql = "SELECT t.*, l.title AS listing_title, l.type AS listing_type, "
+            . "l.quantity AS listing_quantity, l.quantity_sold AS listing_quantity_sold, "
+            . "l.created_at AS listing_created_at, "
+            . "buyer.nickname AS buyer_nickname, buyer.tier AS buyer_tier "
+            . "FROM tickets t "
+            . "JOIN listings l ON l.id = t.listing_id "
+            . "JOIN users buyer ON buyer.user_id = t.buyer_id "
+            . "WHERE t.seller_id = ? "
+            . "ORDER BY l.created_at DESC, t.created_at DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$sellerId]);
+        $rows = $stmt->fetchAll();
+        $grouped = [];
+        foreach ($rows as $r) {
+            $lid = (int) $r['listing_id'];
+            if (!isset($grouped[$lid])) {
+                $grouped[$lid] = [
+                    'listing_id' => $lid,
+                    'listing_title' => $r['listing_title'],
+                    'listing_type' => $r['listing_type'],
+                    'listing_quantity' => (int) $r['listing_quantity'],
+                    'listing_quantity_sold' => (int) $r['listing_quantity_sold'],
+                    'listing_created_at' => $r['listing_created_at'],
+                    'tickets' => [],
+                ];
+            }
+            $grouped[$lid]['tickets'][] = $r;
+        }
+        return array_values($grouped);
+    }
+
+    /**
+     * Find tickets for a seller with `total_sessions > 1`. Used by the
+     * Sales page's per-listing-group placement (D-05).
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    public static function findActiveServicesBySeller(PDO $pdo, int $sellerId): array
+    {
+        $sql = "SELECT t.*, l.title AS listing_title "
+            . "FROM tickets t JOIN listings l ON l.id = t.listing_id "
+            . "WHERE t.seller_id = ? AND t.total_sessions > 1 "
+            . "ORDER BY t.created_at DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$sellerId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Increment session_number atomically
+        /**
      * Increment session_number atomically and return the new value.
      * Used by confirmSession() in the Service.
      *
