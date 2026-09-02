@@ -113,10 +113,14 @@ Plans:
 
 Plans:
 
-- [ ] 03-01: Listings Support primitives + image pipeline — `Support\ImageUpload` (4-layer validation, WebP re-encode, thumbnail generation), `Support\ImageProxy` (auth-checked serving), `Listing/Service`, `Listing/Model`, migrations 002 (listings, listing_images), 003 (categories)
+- [x] 03-01: Listings Support primitives + image pipeline — `Support\ImageUpload` (4-layer validation, WebP re-encode, thumbnail generation), `Support\ImageProxy` (auth-checked serving), `Listing/Service`, `Listing/Model`, migrations 002 (listings, listing_images), 003 (categories)
 - [x] 03-02: Listing CRUD Actions + state machine — `/listings/create`, `/listings/{id}/edit`, `/listings/{id}/delete`, draft/save flow, approved-content fast-track, `review_flag` for active edits, seller's dashboard tabs (Active/Pending/Sold/Draft)
 - [x] 03-03: Board view + listing modal — `/board` (corkboard + plain-grid list-view toggle, category tabs, FULLTEXT search, pagination, guest browse), listing modal (carousel, Next/Previous, keyboard nav, focus trap)
-- [ ] 03-04: Landing page + hand-triggered 24h auto-approve Action — `/` landing (hero, Vision/Mission, How It Works, Team, Footer), `POST /admin/cron/ticket-expiry` Action (admin-only re-auth) implementing the 24h sweep alongside the future expiry job
+- [x] 03-04: Landing page + hand-triggered 24h auto-approve Action — `/` landing (hero, Vision/Mission, How It Works, Team, Footer), `POST /admin/cron/ticket-expiry` Action (admin-only re-auth) implementing the 24h sweep alongside the future expiry job
+
+
+**Verification** (2026-09-02, gsd-verifier): PASSED — 27/27 must-haves verified end-to-end, 304/1462 tests green from fresh DB, all 11 ROADMAP success criteria verified, all 4 plan must-have sets (Plan 03-01 x8, 03-02 x14, 03-03 x14, 04 x8) verified, behavioral spot-checks confirm board render, search, pagination, image proxy, auto-approve cron, and landing page end-to-end. One WARNING: 22 PSR-12 style errors in Phase 3-04 landing files (auto-fixable via `vendor/bin/phpcbf`); no functional impact. See `.planning/phases/03-marketplace-listings-discovery/03-VERIFICATION.md` for the full report.
+
 
 ---
 

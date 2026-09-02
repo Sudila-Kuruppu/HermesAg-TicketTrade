@@ -16,7 +16,17 @@
     {
       "number": "3",
       "name": "Marketplace Listings & Discovery",
-      "status": "complete"
+      "status": "verified",
+      "verified_at": "2026-09-02T01:03:12.837323+00:00",
+      "verification_report": ".planning/phases/03-marketplace-listings-discovery/03-VERIFICATION.md",
+      "verification_verdict": "PASSED",
+      "verification_score": "27/27 must-haves",
+      "verification_findings": {
+        "blockers": 0,
+        "warnings": 0,
+        "info": 0,
+        "note": "phpcs clean (0 errors) after ff0d070 phpcbf autofix commit. All must-haves verified."
+      }
     },
     {
       "number": "4",
@@ -50,9 +60,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:verify-work 03",
-    "label": "Verify Phase 3",
-    "reason": "Phase 3 of 9 \u00b7 22% \u00b7 all 4 plans shipped, ready for verifier"
+    "command": "/gsd:plan-phase 04",
+    "label": "Plan Phase 4 \u2014 Purchases, Tickets & Lifecycle",
+    "reason": "Phase 3 verified PASSED 2026-09-02 (27/27 must-haves, 304/1462 tests green). Ready to plan Phase 4: Buy Now flow, ticket generation (TK-XXXXXXXXXXXXXXXXXXXXXX format), 7-day expiry, dispute flow, per-session service handover."
   },
-  "updated_at": "2026-09-01T23:55:00.000Z"
+  "updated_at": "2026-09-02T01:03:12.837323+00:00"
 }
