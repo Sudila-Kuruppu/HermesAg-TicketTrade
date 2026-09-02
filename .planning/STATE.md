@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 04
 current_phase_name: purchases-tickets-lifecycle
 status: in_progress
-stopped_at: Plan 04-01 complete; awaiting 04-02/04-03
-last_updated: "2026-09-02T06:00:00.000Z"
+stopped_at: Plan 04-02 complete; awaiting 04-03
+last_updated: "2026-09-02T17:00:00.000Z"
 last_activity: 2026-09-02
-last_activity_desc: Phase 04 Plan 01 executed — 4 migrations, Audit stub, ticket_model, ticket_service, points_service::awardTransaction, 5 Actions, 3 partials, JS component, 49 new tests (all green)
+last_activity_desc: Phase 04 Plan 02 executed — 3 Actions replaced (MyTickets / Sales / Purchases), 3 Views replaced, ticket_service::getTicketsForBuyer + getGroupedSales + getPurchaseHistory + ticket_model::findByBuyerAndStatus / findGroupedSales / findPurchaseHistory / findActiveServicesBySeller queries, listing_modal Buy now becomes a POST form (HIDDEN for self-owned + sold-out), 50 new tests (all green)
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 13
-  completed_plans: 10
-  percent: 13
+  completed_plans: 11
+  percent: 14
 ---
 
 # Project State
@@ -25,15 +25,16 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 **Current focus:** Phase 04 — purchases-tickets-lifecycle (Plan 04-01 complete)
 **Phase 3 verification:** PASSED (2026-09-02) — 27/27 must-haves verified, 304/1462 tests green, phpcs 22 auto-fixable style warnings on Phase 3-04 landing files only (no functional impact).
 **Phase 4 Plan 01:** COMPLETE (2026-09-02) — 49 new tests across 10 files (all green); 353 tests in full suite; phpcs 0 errors.
+**Phase 4 Plan 02:** COMPLETE (2026-09-02) — 50 new tests across 8 files (View tests for My Tickets / Sales / Purchases + flow tests for Buy / Redeem / ConfirmSession / Dispute + route guard). Full suite: 403 tests, 2795 assertions. phpcs 0 errors.
 
 ## Current Position
 
 Phase: 04 (purchases-tickets-lifecycle) — IN PROGRESS
-Plans completed in Phase 4: 1 of 3 (Plan 04-01 substrate shipped; 04-02 My Tickets / Sales / Purchases Views + 04-03 cron extension pending)
-Status: Plan 04-01 verified; ready to proceed to Plan 04-02
-Last activity: 2026-09-02 — Plan 04-01 complete (4 migrations, Audit stub, ticket_model, ticket_service, points_service::awardTransaction, 5 Actions, 3 partials, JS component, 49 new tests)
+Plans completed in Phase 4: 2 of 3 (Plan 04-01 substrate + Plan 04-02 UI complete; 04-03 cron extension pending)
+Status: Plan 04-02 verified; ready to proceed to Plan 04-03
+Last activity: 2026-09-02 — Plan 04-02 complete (3 Actions replaced, 3 Views replaced, listing_modal Buy now form, 50 new tests)
 
-Progress: [████░░░░░░░░░░░░░░░░░░] 8% of Phase 4 plans (1/3)
+Progress: [████████░░░░░░░░░░░░░] 17% of Phase 4 plans (2/3)
 
 ## Performance Metrics
 
@@ -102,12 +103,12 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Plan 04-01 complete; awaiting Plan 04-02.
-**Resume file:** .planning/phases/04-purchases-tickets-lifecycle/04-01-SUMMARY.md
+**Stopped at:** Plan 04-02 complete; awaiting Plan 04-03.
+**Resume file:** .planning/phases/04-purchases-tickets-lifecycle/04-02-SUMMARY.md
 
-**Last session:** 2026-09-02T06:00:00.000Z
+**Last session:** 2026-09-02T17:00:00.000Z
 **Resumed:** N/A
-**Next session pickup:** Plan 04-02 lands the My Tickets / Sales / Purchases Views with real ticket data; the dispute Action lives at `/tickets/{id}/dispute` and the redeem Action at `/tickets/redeem` (both wired in Plan 04-01).
+**Next session pickup:** Plan 04-03 extends the cron Action (POST /admin/cron/ticket-expiry) with the 3-day dispute auto-dismiss + ticket-expiry sweeps; ships the hand-triggered dispatch that Plan 04-01 left as a stub.
 
 ---
 *State initialized: 2026-08-26*

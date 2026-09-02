@@ -41,20 +41,20 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 
 ### Tickets & Purchases
 
-- [ ] **BUY-01**: Purchase confirmation modal: "Confirm purchase? This reserves the item with a digital ticket (a reservation, not payment)." with Cancel/Confirm; scrim click suppressed 2s
-- [ ] **BUY-02**: Purchase History tab: ticket code, status, listing title, price, date, seller name
-- [ ] **TKT-01**: On confirmed "Buy Now": generates unique ticket code — format `TK-XXXXXXXXXXXXXXXXXXXXXX` (22 random base62 chars from `random_bytes(16)`, ≥125 bits entropy, not timestamp-derived), retry loop on unique violation (max 10 attempts)
-- [ ] **TKT-02**: "My Tickets" page — status: active | redeemed | expired | disputed; shows code with mask/reveal toggle (keyboard accessible, announces state), copy-to-clipboard, WhatsApp share to seller (pre-filled if seller WhatsApp provided)
-- [ ] **TKT-03**: "Sales" page — seller sees tickets for their listings (grouped by listing with quantity context `#N/Q`); can redeem by entering buyer's code
-- [ ] **TKT-04**: Redemption flow: atomic guarded UPDATE validates (`status='active'`, `dispute_status != 'pending'`, `seller_id = CURRENT_USER`) → marks ticket `redeemed`, `redeemed_at=NOW()` → awards points to both parties; rate-limited 5 attempts/hr/ticket; correct-code resubmission is idempotent and does NOT consume an attempt
-- [ ] **TKT-05**: Ticket expiry: `expires_at` written once at creation (`created_at + INTERVAL 7 DAY`, Asia/Colombo); hourly cron reads stored value; expires if not redeemed → decrements listing `quantity_sold` (services: `total_sessions - (session_number - 1)`); if listing `status='sold'` AND `quantity_sold < quantity`, restore `status='active'`; skipped if `dispute_status='pending'`
-- [ ] **TKT-06**: No payment gateway — simulation only (assignment requirement); "a reservation, not payment" copy on every purchase flow
-- [ ] **TKT-07**: Ticket actions: Copy code · WhatsApp share · Dispute (buyer or seller)
-- [ ] **TKT-08**: Dispute flow: on `active` ticket only → modal with reason dropdown (seller_unresponsive, item_not_as_described, buyer_unresponsive, other) + text (200-char max) + optional evidence image → sets `status='disputed'` AND `dispute_status='pending'`, report created (`target_type='ticket'`) → admin queue with Force Expire (`dispute_status='upheld'`, ticket → `expired`), Force Redeem (`dispute_status='upheld'`, ticket → `redeemed`), Dismiss (`dispute_status='rejected'`, ticket → `active`)
-- [ ] **TKT-09**: Dispute auto-expiry: 3 days after creation → auto-dismiss (`dispute_status='rejected'`, ticket returns to `active`); executed by hourly cron alongside ticket expiry; original `created_at` preserved on dismiss branch only (FR-TKT-013)
-- [ ] **TKT-10**: Redemption rate-limit UX: 1–4 wrong attempts → inline error "Code not recognized." with "N of 5 attempts remaining"; 5th attempt → "Too many attempts. Try again in 1 hour." (field disabled 1h); already-redeemed code → "This ticket was already redeemed on {timestamp}." (idempotent, no new state change); not-your-ticket → "Not authorized to redeem this ticket." + security log entry
-- [ ] **TKT-11**: Ticket display suffix for quantity context: `TK-... #2/5` (UI only, not stored)
-- [ ] **TKT-12**: Per-session service handover: seller confirms each session strictly in order (`session_number` 1..`total_sessions`); each confirmation requires `active` ticket (no pending dispute) AND confirming user must be `seller_id`; logs audit event; points award ONLY on final session confirmation (FR-PTS-007 halving applies); buyer sees per-session progress `#N/M`
+- [x] **BUY-01**: Purchase confirmation modal: "Confirm purchase? This reserves the item with a digital ticket (a reservation, not payment)." with Cancel/Confirm; scrim click suppressed 2s
+- [x] **BUY-02**: Purchase History tab: ticket code, status, listing title, price, date, seller name
+- [x] **TKT-01**: On confirmed "Buy Now": generates unique ticket code — format `TK-XXXXXXXXXXXXXXXXXXXXXX` (22 random base62 chars from `random_bytes(16)`, ≥125 bits entropy, not timestamp-derived), retry loop on unique violation (max 10 attempts)
+- [x] **TKT-02**: "My Tickets" page — status: active | redeemed | expired | disputed; shows code with mask/reveal toggle (keyboard accessible, announces state), copy-to-clipboard, WhatsApp share to seller (pre-filled if seller WhatsApp provided)
+- [x] **TKT-03**: "Sales" page — seller sees tickets for their listings (grouped by listing with quantity context `#N/Q`); can redeem by entering buyer's code
+- [x] **TKT-04**: Redemption flow: atomic guarded UPDATE validates (`status='active'`, `dispute_status != 'pending'`, `seller_id = CURRENT_USER`) → marks ticket `redeemed`, `redeemed_at=NOW()` → awards points to both parties; rate-limited 5 attempts/hr/ticket; correct-code resubmission is idempotent and does NOT consume an attempt
+- [x] **TKT-05**: Ticket expiry: `expires_at` written once at creation (`created_at + INTERVAL 7 DAY`, Asia/Colombo); hourly cron reads stored value; expires if not redeemed → decrements listing `quantity_sold` (services: `total_sessions - (session_number - 1)`); if listing `status='sold'` AND `quantity_sold < quantity`, restore `status='active'`; skipped if `dispute_status='pending'`
+- [x] **TKT-06**: No payment gateway — simulation only (assignment requirement); "a reservation, not payment" copy on every purchase flow
+- [x] **TKT-07**: Ticket actions: Copy code · WhatsApp share · Dispute (buyer or seller)
+- [x] **TKT-08**: Dispute flow: on `active` ticket only → modal with reason dropdown (seller_unresponsive, item_not_as_described, buyer_unresponsive, other) + text (200-char max) + optional evidence image → sets `status='disputed'` AND `dispute_status='pending'`, report created (`target_type='ticket'`) → admin queue with Force Expire (`dispute_status='upheld'`, ticket → `expired`), Force Redeem (`dispute_status='upheld'`, ticket → `redeemed`), Dismiss (`dispute_status='rejected'`, ticket → `active`)
+- [x] **TKT-09**: Dispute auto-expiry: 3 days after creation → auto-dismiss (`dispute_status='rejected'`, ticket returns to `active`); executed by hourly cron alongside ticket expiry; original `created_at` preserved on dismiss branch only (FR-TKT-013)
+- [x] **TKT-10**: Redemption rate-limit UX: 1–4 wrong attempts → inline error "Code not recognized." with "N of 5 attempts remaining"; 5th attempt → "Too many attempts. Try again in 1 hour." (field disabled 1h); already-redeemed code → "This ticket was already redeemed on {timestamp}." (idempotent, no new state change); not-your-ticket → "Not authorized to redeem this ticket." + security log entry
+- [x] **TKT-11**: Ticket display suffix for quantity context: `TK-... #2/5` (UI only, not stored)
+- [x] **TKT-12**: Per-session service handover: seller confirms each session strictly in order (`session_number` 1..`total_sessions`); each confirmation requires `active` ticket (no pending dispute) AND confirming user must be `seller_id`; logs audit event; points award ONLY on final session confirmation (FR-PTS-007 halving applies); buyer sees per-session progress `#N/M`
 
 ### Reviews & Ratings
 
@@ -133,12 +133,12 @@ Requirements for initial release (MVP due 2026-09-02). Each maps to roadmap phas
 - [ ] **PER-03**: Image thumbnails generated on upload (3 sizes: 200px, 600px, 1200px, all WebP 80% quality) (NFR-PER-003)
 - [ ] **PER-04**: Cron ticket-expiry completes < 30s for 10k tickets (single guarded UPDATE) (NFR-PER-004)
 - [ ] **PER-05**: Leaderboard summary-table queries served from indexes over summary tables refreshed daily by cron (NFR-PER-005)
-- [ ] **REL-01**: Idempotent ticket redemption (re-redeeming returns current state, not error); correct-code resubmission is idempotent and does NOT consume a rate-limit attempt (NFR-REL-001)
-- [ ] **REL-02**: Idempotent cron job within same wall-clock day (re-running produces no duplicate effects); staging replay: `TRUNCATE cron_log; php jobs/ticket_expiry.php` = identical result for ticket expiry (NFR-REL-002)
+- [x] **REL-01**: Idempotent ticket redemption (re-redeeming returns current state, not error); correct-code resubmission is idempotent and does NOT consume a rate-limit attempt (NFR-REL-001)
+- [x] **REL-02**: Idempotent cron job within same wall-clock day (re-running produces no duplicate effects); staging replay: `TRUNCATE cron_log; php jobs/ticket_expiry.php` = identical result for ticket expiry (NFR-REL-002)
 - [ ] **REL-03**: Database foreign keys with `ON DELETE CASCADE` / `SET NULL` / `RESTRICT` where appropriate (NFR-REL-003)
-- [ ] **REL-04**: Atomic UPDATE for ticket redemption — no explicit transaction needed (NFR-REL-004)
-- [ ] **REL-05**: Points ledger uniqueness via `UNIQUE KEY uniq_event (event_uuid)` — one row per points event, covering retries and closing duplicate-NULL hole (NFR-REL-005)
-- [ ] **REL-06**: FK `tickets.listing_id ON DELETE RESTRICT` — seller cannot delete listing with active tickets (NFR-REL-006)
+- [x] **REL-04**: Atomic UPDATE for ticket redemption — no explicit transaction needed (NFR-REL-004)
+- [x] **REL-05**: Points ledger uniqueness via `UNIQUE KEY uniq_event (event_uuid)` — one row per points event, covering retries and closing duplicate-NULL hole (NFR-REL-005)
+- [x] **REL-06**: FK `tickets.listing_id ON DELETE RESTRICT` — seller cannot delete listing with active tickets (NFR-REL-006)
 - [ ] **OPS-01**: Dev server: `php -S localhost:8000 -t public` from project root with `public/router.php` (NFR-OPS-001)
 - [ ] **OPS-02**: Migrations: `migrations/NNN_*.sql` files + `migrations/.applied` set; `php migrate.php` runs missing files in lexical order inside a single transaction per file; forward-only (NFR-OPS-002, AD-6)
 - [ ] **OPS-03**: Cron ticket-expiry (`php jobs/ticket_expiry.php`, hourly) — file lock via `flock()`, timezone Asia/Colombo, owns (a) ticket expiry, (b) 24h listing auto-approve, (c) 3-day dispute auto-dismiss; cron_log table; manual trigger endpoint `POST /admin/cron/ticket-expiry` (admin only) (NFR-OPS-003, AD-11)

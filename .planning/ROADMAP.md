@@ -151,11 +151,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02: Buy Now + My Tickets — `/listings/{id}/buy` Action with confirmation modal + ticket creation, `/tickets` (My Tickets) View with mask/reveal/copy/WhatsApp, `/tickets/{id}` detail
+- [x] 04-02: Buy Now + My Tickets + Sales + Purchases Views — `/listings/{id}/buy` Action POST form (HIDDEN for self-owned + sold-out), `/my-tickets` View with 5 tabs (All/Active/Redeemed/Expired/Disputed) + ticket-code-block + dispute button, `/sales` View with per-listing-group placement + redemption input + confirm-next-session, `/purchases` View with chronological table (desktop) / stacked rows (mobile). 8 new test files, 50 tests, 141 assertions. COMPLETE 2026-09-02.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03: Sales page + redemption + cron extension — `/sales` View with grouped tickets + quantity context, `POST /tickets/redeem` Action with atomic UPDATE + rate-limit + idempotency + UX-DR-37 error states, per-session confirmation sub-flow for services, cron Action extension for ticket-expiry + dispute auto-dismiss sweeps
+- [ ] 04-03: cron Action extension + ticket-expiry + 3-day dispute auto-dismiss — `POST /admin/cron/ticket-expiry` runs the three sweeps in order: 24h listing auto-approve (kept), 3-day dispute auto-dismiss, 7-day ticket expiry. Hand-triggered in Phase 4; scheduled in Phase 9.
 
 ---
 
