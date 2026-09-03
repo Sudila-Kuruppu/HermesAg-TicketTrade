@@ -175,6 +175,26 @@ class ticket_model
     }
 
     /**
+     * Thin read returning only the fields the Review Service needs
+     * to enforce the AD-15 gate. Per Plan 05-01 D-05: no joins, no
+     * extra columns — the review hot path doesn't need listing
+     * title or seller nickname.
+     *
+     * Returns: ticket_id, listing_id, buyer_id, seller_id, status,
+     *          dispute_status, redeemed_at (or null if not yet redeemed).
+     */
+    public static function findByIdForReviewerGate(PDO $pdo, int $id): ?array
+    {
+        $stmt = $pdo->prepare(
+            'SELECT id, listing_id, buyer_id, seller_id, status, '
+            . 'dispute_status, redeemed_at FROM tickets WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$id]);
+        $r = $stmt->fetch();
+        return $r === false ? null : $r;
+    }
+
+    /**
      * Find all active tickets a buyer currently holds. Used by the
      * My Tickets "Active" tab.
      *

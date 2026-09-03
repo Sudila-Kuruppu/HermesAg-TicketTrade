@@ -16,6 +16,8 @@
 <exclude-pattern>src/Ticket/Service/ticket_service.php</exclude-pattern>
 <exclude-pattern>src/Ticket/Model/ticket_model.php</exclude-pattern>
     <exclude-pattern>src/Category/Service/category_service.php</exclude-pattern>
+    <exclude-pattern>src/Review/Service/review_service.php</exclude-pattern>
+    <exclude-pattern>src/Review/Model/review_model.php</exclude-pattern>
     <!-- Allow long lines in templates (line breaks would break the render). -->
     <rule ref="Generic.Files.LineLength">
         <severity>0</severity>
