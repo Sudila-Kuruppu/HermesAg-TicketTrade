@@ -248,9 +248,12 @@ class review_service
     }
 
     /**
-     * Placeholder for Plan 05-02's read path. Returns the rating
-     * summary for a user (avg, count, distribution) + dispute count.
-     * Plan 05-02 wires this into PublicProfileAction.
+     * Get the rating summary for a user (avg, count, distribution) +
+     * dispute count. Plan 05-02 wires this into PublicProfileAction.
+     *
+     * Per D-07 + D-09: this is two SQL statements (ratings aggregation
+     * + dispute count). Read-only — no transaction needed. Returns
+     * zeros when the user has no reviews / no upheld disputes.
      *
      * @return array{rating_avg:float, rating_count:int, rating_distribution:array<int,int>, dispute_count:int}
      */
@@ -268,14 +271,34 @@ class review_service
     }
 
     /**
-     * Placeholder for Plan 05-02's Reviews tab. Returns the
-     * paginated list of reviews received by the user.
+     * List reviews received by a user, paginated by $offset/$limit,
+     * with the total count for Prev/Next rendering (D-08).
      *
-     * @return array<int, array<string,mixed>>
+     * Per D-02: this returns reviews RECEIVED by the user, regardless
+     * of `reviewer_role`. Per D-08: pagination is offset-based with
+     * 10 per page. The View renders Prev/Next when $offset > 0 or
+     * $total > $offset + $limit.
+     *
+     * @return array{0: array<int, array<string,mixed>>, 1: int}
+     *         Tuple of [rows, total]. Rows contain reviewer_nickname
+     *         (never full name per FR-RAT-003) and are ordered
+     *         created_at DESC.
      */
     public static function listReviewsForUser(int $userId, int $limit, int $offset): array
     {
+        // Defense-in-depth clamps (Views also clamp).
+        if ($limit < 1) {
+            $limit = 10;
+        } elseif ($limit > 50) {
+            $limit = 50;
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
         $pdo = Db::pdo();
-        return review_model::listForReviewee($pdo, $userId, $limit, $offset);
+        $rows = review_model::listForReviewee($pdo, $userId, $limit, $offset);
+        $total = review_model::countForReviewee($pdo, $userId);
+        return [$rows, $total];
     }
 }

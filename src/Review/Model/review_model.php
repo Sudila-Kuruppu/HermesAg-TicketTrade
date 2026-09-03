@@ -125,6 +125,18 @@ class review_model
     }
 
     /**
+     * Total count of reviews received by a user. Used by the Reviews
+     * tab for pagination (Prev/Next rendering, D-08).
+     */
+    public static function countForReviewee(PDO $pdo, int $userId): int
+    {
+        $stmt = $pdo->prepare('SELECT COUNT(*) AS c FROM reviews WHERE reviewee_id = ?');
+        $stmt->execute([$userId]);
+        $r = $stmt->fetch();
+        return $r === false ? 0 : (int) $r['c'];
+    }
+
+    /**
      * Count of tickets where the given user was the seller and the
      * dispute was resolved as UPHELD. Phase 5 ships the function
      * returning 0; Phase 7's admin Force Expire/Redeem sets
