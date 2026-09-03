@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Student Authentication & Profiles** — Register, log in, profile mgmt, session/CSRF/rate-limit Support primitives (completed 2026-09-01)
 - [x] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot (completed 2026-09-01)
 - [x] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
-- [ ] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count
+- [x] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count (completed 2026-09-03)
 - [ ] **Phase 6: Points, Ranks & Leaderboards** — Points engine, 6-tier ladder, daily leaderboards, anti-farming rules
 - [ ] **Phase 7: Reports, Disputes & Moderation Workflow** — User reports, admin queue, destructive actions with re-auth
 - [ ] **Phase 8: Admin Console, Audit & Analytics** — User mgmt, listings approval queue, audit log, analytics, admin re-auth primitive
@@ -180,8 +180,8 @@ Plans:
 
 Plans:
 
-- [ ] 05-01: Reviews Service + Actions — `Ticket/Service/review_service.php` with AD-15 gate, `Ticket/Model/review_model.php`, `POST /tickets/{id}/review` Action (1-5 star + text), `GET /tickets/{id}/review` form
-- [ ] 05-02: Public profile aggregation — extend `/profile/{nickname}` View (from Phase 2) with rating average, distribution, count, dispute count; profile tabs Reviews; seller profile on listing modal shows aggregation
+- [x] 05-01: Reviews Service + Actions — review migration, submitReview with AD-15 gate, awardReviewPoints, ReviewAction + route + rate-limit + 6 error codes, star-rating partial + review modal + purchases row + JS + CSS
+- [x] 05-02: Public profile aggregation — review_service getSummaryForUser + listReviewsForUser; profile Reviews tab + 4 view partials + CSS; listing modal compact rating + dispute rows + BrowseAction fetch
 
 ---
 
