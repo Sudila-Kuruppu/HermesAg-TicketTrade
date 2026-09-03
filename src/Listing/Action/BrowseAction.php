@@ -28,6 +28,7 @@ namespace App\Listing\Action;
 
 use App\Category\Service\category_service;
 use App\Listing\Service\listing_service;
+use App\Review\Service\review_service;
 use App\Support\Auth as AuthGuard;
 use App\Support\View;
 
@@ -100,6 +101,24 @@ class BrowseAction
             }
         }
 
+        // -------- Seller rating summary for the listing modal (Plan 05-02) ----
+        // N+1 acceptable for WAD scope (one extra query per board render,
+        // used by the first-listing modal pre-render). Per-board caching
+        // is a Phase 9 perf concern. Returns zeros when the seller has
+        // no reviews / no upheld disputes.
+        $sellerSummary = [
+            'rating_avg' => 0.0,
+            'rating_count' => 0,
+            'rating_distribution' => [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0],
+            'dispute_count' => 0,
+        ];
+        if (!empty($rows)) {
+            $firstSellerId = (int) ($rows[0]['seller_id'] ?? 0);
+            if ($firstSellerId > 0) {
+                $sellerSummary = review_service::getSummaryForUser($firstSellerId);
+            }
+        }
+
         View::render(
             __DIR__ . '/../View/board.php',
             [
@@ -112,6 +131,7 @@ class BrowseAction
                 'categories' => $cats,
                 'is_guest' => $isGuest,
                 'active_cat_name' => $activeCatName,
+                'seller_summary' => $sellerSummary,
             ]
         );
     }

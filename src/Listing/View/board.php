@@ -180,6 +180,7 @@ if ($firstListing !== null) {
           'prev_id' => $prevId,
           'next_id' => $nextId,
           'csrf_token' => \App\Support\Csrf::token(),
+          'seller_summary' => $__vars['seller_summary'] ?? [],
         ];
         require __DIR__ . '/listing_modal.php';
   endif; ?>

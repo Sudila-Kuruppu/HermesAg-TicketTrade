@@ -3,12 +3,14 @@
 /**
  * TicketTrade — Listing/View/listing_modal
  *
- * Phase 3 Plan 03-03 + Phase 4 Plan 04-02. The full-screen listing
- * modal at the bottom of the board page. Single modal, content
- * swapped in by JS (per D-22: the JS reads /listings/{id}?fragment=1
- * to fetch new content; for Phase 3 the initial modal HTML is
- * pre-rendered with the first visible listing's data to keep the
- * demo fast and avoid a fetch roundtrip on first click).
+ * Phase 3 Plan 03-03 + Phase 4 Plan 04-02 + Phase 5 Plan 05-02.
+ *
+ * The full-screen listing modal at the bottom of the board page.
+ * Single modal, content swapped in by JS (per D-22: the JS reads
+ * /listings/{id}?fragment=1 to fetch new content; for Phase 3 the
+ * initial modal HTML is pre-rendered with the first visible listing's
+ * data to keep the demo fast and avoid a fetch roundtrip on first
+ * click).
  *
  * Phase 4 changes:
  *   - The "Buy now" button is now a <form method="POST" action=
@@ -20,6 +22,15 @@
  *   - Guests still see the "Sign in to buy" link per D-09 of
  *     Phase 3.
  *
+ * Phase 5 Plan 05-02: INSERTS a compact "★ 4.8 (23 reviews)" row
+ * between the seller nickname and the tier badge (D-09 + BLOCKER
+ * review note). The rating row renders ONLY when rating_count > 0
+ * (no row when 0 — the listing modal is information-dense; absence
+ * is signal). The dispute suffix ("· N disputes") is gated
+ * INDEPENDENTLY so a seller with 0 reviews but 2 upheld disputes
+ * still gets the suffix. The compact fragments live in
+ * review_summary_compact_rating / review_summary_compact_dispute.
+ *
  * The data-component="listingModal" attribute hooks the JS component.
  */
 
@@ -29,6 +40,9 @@ $__vars = $GLOBALS['_tt_view_vars'] ?? [];
 $firstListing = $__vars['first_listing'] ?? null;
 $nextId = $__vars['next_id'] ?? null;
 $prevId = $__vars['prev_id'] ?? null;
+$sellerSummary = is_array($__vars['seller_summary'] ?? null)
+    ? $__vars['seller_summary']
+    : [];
 $currentUser = $GLOBALS['current_user'] ?? null;
 $currentUserId = $currentUser !== null ? (int) ($currentUser['user_id'] ?? 0) : 0;
 $isGuest = ($currentUser === null);
@@ -86,7 +100,7 @@ $csrfToken = (string) ($__vars['csrf_token'] ?? \App\Support\Csrf::token());
               <p class="listing-modal__description body-md">
                 <?= nl2br(htmlspecialchars((string) $firstListing['description'], ENT_QUOTES, 'UTF-8')) ?>
               </p>
-              <div class="listing-modal__seller d-flex align-items-center gap-2 mt-3">
+              <div class="listing-modal__seller d-flex flex-wrap align-items-center gap-2 mt-3">
                 <span class="body-sm text-on-surface-variant">
                   Sold by
                   <strong>@<?= htmlspecialchars((string) ($firstListing['seller_nickname'] ?? 'seller'), ENT_QUOTES, 'UTF-8') ?></strong>
@@ -94,6 +108,20 @@ $csrfToken = (string) ($__vars['csrf_token'] ?? \App\Support\Csrf::token());
                     <span aria-label="Verified student" title="Verified student">&#10003;</span>
                   <?php endif; ?>
                 </span>
+                <?php
+                  // Phase 5 Plan 05-02: compact rating + dispute
+                  // fragments (D-09 + BLOCKER review note). Gated
+                  // INDEPENDENTLY — a seller with 0 reviews but 2
+                  // upheld disputes still shows "· 2 disputes".
+                  \App\Support\View::partial(
+                      'review_summary_compact_rating',
+                      ['summary' => $sellerSummary]
+                  );
+                  \App\Support\View::partial(
+                      'review_summary_compact_dispute',
+                      ['summary' => $sellerSummary]
+                  );
+                ?>
                 <span class="badge rank-badge rank-<?= htmlspecialchars(strtolower((string) ($firstListing['seller_tier'] ?? 'e')), ENT_QUOTES, 'UTF-8') ?>"
                       aria-label="Rank tier <?= htmlspecialchars((string) ($firstListing['seller_tier'] ?? 'E'), ENT_QUOTES, 'UTF-8') ?>">
                   <?= htmlspecialchars((string) ($firstListing['seller_tier'] ?? 'E'), ENT_QUOTES, 'UTF-8') ?>
