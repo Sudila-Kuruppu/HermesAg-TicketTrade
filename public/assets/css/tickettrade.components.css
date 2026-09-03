@@ -512,3 +512,85 @@
 .team .avatar {
   letter-spacing: 0.02em;
 }
+
+/* ----- Star rating input (Phase 5 Plan 05-01) -----
+   Bootstrap Icons version (.bi-star / .bi-star-fill). Distinct from
+   the Phase 1 .star-rating (SVG). Mirrors the visual contract:
+     - filled stars use --color-secondary
+     - empty stars use --color-outline-variant
+     - 24px icons, flex row-reverse so :hover ~ flips stacking order
+   Per D-01 + DESIGN.md. */
+.star-rating-input {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-1);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.star-rating-input > legend {
+  font-size: var(--font-size-body-md);
+  color: var(--color-on-surface);
+  padding: 0 var(--space-2) 0 0;
+}
+.star-rating-input input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.star-rating-input__icon {
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-outline-variant);
+  font-size: 24px;
+  line-height: 1;
+}
+.star-rating-input__icon.bi-star-fill {
+  color: var(--color-secondary);
+}
+/* Hover/focus preview: row-reverse lets ~ flip left of the hovered icon. */
+.star-rating-input__icon:hover,
+.star-rating-input__icon:hover ~ .star-rating-input__icon,
+.star-rating-input:focus-within .star-rating-input__icon,
+.star-rating-input:focus-within .star-rating-input__icon ~ .star-rating-input__icon {
+  color: var(--color-secondary);
+}
+.star-rating-input input[type="radio"]:checked ~ .star-rating-input__icon,
+.star-rating-input input[type="radio"]:checked + .star-rating-input__icon {
+  color: var(--color-secondary);
+}
+.star-rating-input__clear {
+  margin-left: var(--space-2);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-on-surface-variant);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.star-rating-input__clear:hover,
+.star-rating-input__clear:focus-visible {
+  color: var(--color-secondary);
+}
+
+/* Submit button disabled until a rating is selected (CSS-only). */
+[data-review-form] [data-review-submit] {
+  pointer-events: none;
+  opacity: 0.6;
+}
+[data-review-form] input[name="rating"]:checked ~ * [data-review-submit],
+[data-review-form]:has(input[name="rating"]:checked) [data-review-submit] {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+/* ----- Review modal (Phase 5 Plan 05-01) ----- */
+[data-component="review-modal"] .modal-body {
+  padding: var(--space-4) var(--space-5);
+}
+[data-component="review-modal"] [data-review-text] {
+  min-height: 96px;
+}

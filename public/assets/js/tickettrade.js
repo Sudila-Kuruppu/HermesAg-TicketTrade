@@ -574,6 +574,100 @@
 
 
   // ---------------------------------------------------------------------------
+  // starRatingInput — Phase 5 Plan 05-01. Hover/preview swap + Clear button.
+  // Mirrors the visual contract of the existing `starRating` (Phase 1)
+  // keyboard handler but uses Bootstrap Icons (`bi-star`/`bi-star-fill`)
+  // instead of SVG. Distinct data-component name ("star-rating-input")
+  // so the two patterns can coexist.
+  //
+  //   - On radio :hover / :focus-within, swap .bi-star -> .bi-star-fill
+  //     on the icon label up to the hovered/checked value.
+  //   - On radio change, commit the visual state.
+  //   - On Clear link click, uncheck all radios + reset icons.
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('starRatingInput', function () {
+    var fieldsets = document.querySelectorAll('[data-component="star-rating-input"]');
+    fieldsets.forEach(function (fs) {
+      var icons = fs.querySelectorAll('.star-rating-input__icon');
+      var inputs = fs.querySelectorAll('input[type="radio"]');
+      if (!inputs.length) return;
+
+      // Order icons ascending (1..5). They render in DOM order 5..1
+      // (CSS row-reverse flips them visually) so map by data attribute.
+      function setVisualState(n) {
+        for (var k = 0; k < icons.length; k++) {
+          var icon = icons[k];
+          var value = parseInt(icon.getAttribute('data-rating-icon'), 10);
+          if (!isNaN(value) && value <= n) {
+            icon.classList.remove('bi-star');
+            icon.classList.add('bi-star-fill');
+          } else {
+            icon.classList.remove('bi-star-fill');
+            icon.classList.add('bi-star');
+          }
+        }
+      }
+
+      // Initialize from the currently-checked radio.
+      var checked = fs.querySelector('input[type="radio"]:checked');
+      setVisualState(checked ? parseInt(checked.value, 10) : 0);
+
+      inputs.forEach(function (input) {
+        input.addEventListener('change', function () {
+          var n = parseInt(input.value, 10);
+          if (!isNaN(n)) {
+            setVisualState(n);
+            input.setAttribute('aria-label', 'Rating: ' + n + ' of 5');
+          }
+        });
+        // Mouse hover preview — swap icons live, commit on change.
+        var label = fs.querySelector('label[for="' + input.id + '"]');
+        if (label) {
+          label.addEventListener('mouseenter', function () {
+            var n = parseInt(input.value, 10);
+            if (!isNaN(n)) setVisualState(n);
+          });
+          label.addEventListener('mouseleave', function () {
+            var current = fs.querySelector('input[type="radio"]:checked');
+            setVisualState(current ? parseInt(current.value, 10) : 0);
+          });
+        }
+      });
+
+      // Clear link: uncheck all radios and reset icons.
+      var clear = fs.querySelector('[data-action="clear"]');
+      if (clear) {
+        clear.addEventListener('click', function (e) {
+          e.preventDefault();
+          inputs.forEach(function (i) { i.checked = false; });
+          setVisualState(0);
+        });
+      }
+    });
+  });
+
+
+  // ---------------------------------------------------------------------------
+  // reviewModal — Phase 5 Plan 05-01. Live char counter for the comment
+  // textarea + bootstrap auto-clear of the Submit-button disabled state.
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('reviewModal', function () {
+    var modals = document.querySelectorAll('[data-component="review-modal"]');
+    modals.forEach(function (modal) {
+      var textarea = modal.querySelector('[data-review-text]');
+      var counter = modal.querySelector('[data-review-counter]');
+      if (textarea && counter) {
+        var maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 0;
+        textarea.addEventListener('input', function () {
+          var remaining = Math.max(0, maxLen - textarea.value.length);
+          counter.textContent = String(remaining);
+        });
+      }
+    });
+  });
+
+
+  // ---------------------------------------------------------------------------
   // DOMContentLoaded: init all components
   // ---------------------------------------------------------------------------
   if (document.readyState === 'loading') {

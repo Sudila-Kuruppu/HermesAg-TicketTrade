@@ -3,18 +3,24 @@
 /**
  * TicketTrade — Purchases View
  *
- * Phase 4 Plan 04-02. Chronological purchase history: a table on
- * desktop / stacked rows on mobile (Bootstrap 5 responsive classes).
- * The `Leave review` affordance is NOT in Phase 4 (Phase 5).
+ * Phase 4 Plan 04-02 + Phase 5 Plan 05-01. Chronological purchase
+ * history: a table on desktop / stacked rows on mobile (Bootstrap 5
+ * responsive classes). Phase 5 adds the `Leave review` button +
+ * per-row review modal for redeemed tickets within the 14-day window.
  *
  * Columns: Code (masked + reveal), Status (status badge), Listing
- * (title), Price (Rs X.XX), Seller (nickname), Date (Asia/Colombo).
+ * (title), Price (Rs X.XX), Seller (nickname), Date (Asia/Colombo),
+ * Actions (Leave review button when eligible).
  */
 
 declare(strict_types=1);
 
 $__vars = $GLOBALS['_tt_view_vars'] ?? [];
 $tickets = (array) ($__vars['tickets'] ?? []);
+
+// 14-day review window cutoff — D-03. Computed once per render.
+$reviewCutoff = (new \DateTime('-14 days', new \DateTimeZone('Asia/Colombo')))
+    ->format('Y-m-d H:i:s');
 
 $dateFmt = new \IntlDateFormatter(
     'en_US@calendar=gregorian',
@@ -24,6 +30,23 @@ $dateFmt = new \IntlDateFormatter(
     \IntlDateFormatter::GREGORIAN,
     'd MMM y, HH:mm'
 );
+
+/**
+ * Helper: is the row eligible for review? Per D-03 + AD-15 the row must
+ * be `redeemed` AND `redeemed_at >= NOW() - 14 days`. The 14-day
+ * eligibility flag is exposed for tests / View integration.
+ */
+$canReview = static function (array $row) use ($reviewCutoff): bool {
+    $status = (string) ($row['status'] ?? '');
+    if ($status !== 'redeemed') {
+        return false;
+    }
+    $redeemedAt = (string) ($row['redeemed_at'] ?? '');
+    if ($redeemedAt === '') {
+        return false;
+    }
+    return $redeemedAt >= $reviewCutoff;
+};
 ?>
 <section class="container purchases-shell" style="padding-top: var(--space-8, 48px); padding-bottom: var(--space-8, 48px);">
   <header class="d-flex align-items-center justify-content-between mb-3">
@@ -51,6 +74,7 @@ $dateFmt = new \IntlDateFormatter(
             <th scope="col">Price</th>
             <th scope="col">Seller</th>
             <th scope="col">Date</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -68,6 +92,7 @@ $dateFmt = new \IntlDateFormatter(
                 } catch (\Throwable $e) {
                     $dateStr = $createdAt;
                 }
+                $reviewEligible = $canReview((array) $t);
                 ?>
             <tr data-ticket-id="<?= (int) $tid ?>">
               <td>
@@ -81,6 +106,17 @@ $dateFmt = new \IntlDateFormatter(
               <td>Rs <?= htmlspecialchars(number_format($priceCents / 100, 2), ENT_QUOTES, 'UTF-8') ?></td>
               <td>@<?= htmlspecialchars($sellerNick, ENT_QUOTES, 'UTF-8') ?></td>
               <td class="caption"><?= htmlspecialchars($dateStr, ENT_QUOTES, 'UTF-8') ?></td>
+              <td>
+                <?php if ($reviewEligible) : ?>
+                  <button type="button"
+                          class="btn btn-primary btn-sm"
+                          data-bs-toggle="modal"
+                          data-bs-target="#review-modal-<?= (int) $tid ?>"
+                          data-action="leave-review">
+                    Leave review
+                  </button>
+                <?php endif; ?>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -103,6 +139,7 @@ $dateFmt = new \IntlDateFormatter(
             } catch (\Throwable $e) {
                 $dateStr = $createdAt;
             }
+            $reviewEligible = $canReview((array) $t);
             ?>
         <div class="card surface-container mb-2" data-ticket-id="<?= (int) $tid ?>">
           <div class="card-body">
@@ -117,10 +154,36 @@ $dateFmt = new \IntlDateFormatter(
                   'seller_whatsapp' => '',
               ]) ?>
             </div>
-            <p class="caption text-on-surface-variant mb-0"><?= htmlspecialchars($dateStr, ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="caption text-on-surface-variant mb-2"><?= htmlspecialchars($dateStr, ENT_QUOTES, 'UTF-8') ?></p>
+            <?php if ($reviewEligible) : ?>
+              <button type="button"
+                      class="btn btn-primary btn-sm w-100"
+                      data-bs-toggle="modal"
+                      data-bs-target="#review-modal-<?= (int) $tid ?>"
+                      data-action="leave-review">
+                Leave review
+              </button>
+            <?php endif; ?>
           </div>
         </div>
       <?php endforeach; ?>
     </div>
+
+    <!-- Per-row review modals (one per eligible ticket). Rendered in a
+         hidden container at the end of the page so the DOM weight is
+         acceptable (Phase 5 cap: ≤50 rows). The modal file reads
+         $GLOBALS['_tt_view_vars'] directly, so we set the vars and
+         require the file (no layout wrapping). -->
+      <?php foreach ($tickets as $t) :
+            $tid = (int) $t['id'];
+            if (!$canReview((array) $t)) {
+                continue;
+            }
+            $GLOBALS['_tt_view_vars'] = [
+              'ticket_id'  => $tid,
+              'csrf_token' => \App\Support\Csrf::token(),
+            ];
+            require __DIR__ . '/../../Review/View/review_modal.php';
+      endforeach; ?>
   <?php endif; ?>
 </section>
