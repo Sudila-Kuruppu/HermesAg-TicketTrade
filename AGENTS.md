@@ -97,7 +97,7 @@ Source of truth: `config/team.php` (consumed by the landing-page Team section pe
 - Bootstrap -> FrontController -> Action -> Service -> Model -> PDO. Models never import Actions; Services never import Controllers; Contexts never import another Context's Model.
 
 ### Git workflow
-- Branch from `NSBM-EventHub` (current dev branch); never push to `main`.
+- Branch from `main`; never push directly to `main`; PRs only, one approval required. Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - One approval per PR. Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - Phase work lands via GSD phases; small fixes via `/gsd-quick`.
 
