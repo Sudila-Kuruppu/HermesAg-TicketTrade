@@ -97,9 +97,16 @@ Source of truth: `config/team.php` (consumed by the landing-page Team section pe
 - Bootstrap -> FrontController -> Action -> Service -> Model -> PDO. Models never import Actions; Services never import Controllers; Contexts never import another Context's Model.
 
 ### Git workflow
-- Branch from `NSBM-EventHub` (current dev branch); never push to `main`.
+
+**Repository layout (learned 2026-09-03):** The local monorepo at `/home/user/hermesag` holds many sub-projects under numbered dirs (`001/`, `002/`, `003/`, `004/tickettrade/`, ...). The **public GitHub repo** (`https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade`) is the **tickettrade-only** repo, not the monorepo. The local `main` branch is `NSBM-EventHub` (monorepo trunk); the GitHub repo's default branch is `main` (tickettrade-only trunk). Never conflate them.
+
+**Branch + push workflow:**
+- Branch from `main` on GitHub for new work; never push directly to `main`; PRs only, one approval required.
+- Local dev happens on `NSBM-EventHub` (or a feature branch off it). Before pushing to GitHub, see `<!-- GSD:env-quirks-end -->` → "GitHub push via subtree split" below — that section is the canonical procedure.
 - One approval per PR. Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - Phase work lands via GSD phases; small fixes via `/gsd-quick`.
+
+**Per-phase branches (added 2026-09-03):** Each phase gets its own branch on the GitHub repo to isolate phase commits for review/rollback. Convention: `phase-<NN>-<slug>` (e.g. `phase-01-ux-foundation-design-system`, `phase-02-student-authentication-profiles`). The phase branch is created at phase completion, force-pushed from the monorepo's phase work, then merged into `main` (or PR'd for review). Phase directory naming inside `.planning/phases/` matches the branch slug.
 
 <!-- GSD:conventions-end -->
 
@@ -174,6 +181,18 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 
 **Composer is local to tickettrade.** Run `composer install` from `/home/user/hermesag/004/tickettrade`, not the parent. `vendor/bin/phpunit` and `vendor/bin/phpcs` only exist there.
 
+**GitHub push via subtree split (learned 2026-09-03 from validate-phase work):** Because the GitHub repo is tickettrade-only and local work happens inside the monorepo at `004/tickettrade/`, you cannot `git push` directly — the local repo's root is `/home/user/hermesag`, not the tickettrade subdir. Procedure:
+
+1. Commit your work on the local monorepo branch (e.g. `NSBM-EventHub`) with **explicit paths** to `git add` — never `git add -A` from the monorepo root (it would sweep in unrelated dirty state from sibling projects). `git add 004/tickettrade/<file>` is the safe form.
+2. From the monorepo root `/home/user/hermesag`, run `git subtree split --prefix=004/tickettrade -b tickettrade-split HEAD`. This produces a branch whose tree is **only** the tickettrade contents, preserving history.
+3. Fetch the GitHub default: `git fetch <remote> main`. If the GitHub `main` has diverged (it usually has — phases 2..5 were committed directly on GitHub `main` before the monorepo sync), `git merge --allow-unrelated-histories` it into `tickettrade-split` to align.
+4. Push to GitHub with explicit refspec: `git push <remote> tickettrade-split:<branch-name>` — typically `:main` (overwrite) or `:phase-XX-<slug>` (per-phase branch per the new convention above).
+5. Delete the local `tickettrade-split` branch when done. Do NOT keep it as a long-lived local branch — it diverges from the source-of-truth (`NSBM-EventHub`) on every new commit.
+
+**Do NOT push the local `NSBM-EventHub` branch directly.** It contains every sub-project (`001/`, `002/`, ...), worktrees, and dirty state that has nothing to do with tickettrade. Pushing it once (in 2026-09-03 validate-phase work) created a branch on GitHub with the wrong content and had to be deleted.
+
+**The `HermesAg-TicketTrade` remote** is the public repo. The `origin` remote in the monorepo points to `/home/user/hermesag` (a local path) and is unrelated.
+
 ## Subagent session-resumption protocol (IDX/opencode)
 
 The opencode `task` tool can spawn a subagent and resume it via `task_id`. Two failure modes are common here and have known recovery:
@@ -185,6 +204,24 @@ The opencode `task` tool can spawn a subagent and resume it via `task_id`. Two f
 3. **Spawning a real run before getting the id is wasteful** because if the user aborts you can't reach the child. Standard order: probe (`hi`) → capture `task_id` → run real prompt on that same `task_id` (resume). The probe session is fresh but cheap; resuming on it lets the user reach into it if they need to.
 
 **Naming convention for `task` descriptions:** prefix with `<N> GSD-<Role> <Plan-Id> <Stage>` so the manager's spot-check grep is human-readable. Example: `"1 GSD-Executor 05-02 Task 3 + SUMMARY"`, `"2 GSD-Verifier 05 phase"`. The `<N>` is the wave position (1, 2, ...); `<Role>` is `Executor` / `Verifier` / `Planner`; `<Plan-Id>` is `05-01` / `05-02`; `<Stage>` is the task name.
+
+## GSD validate-phase workflow (learned 2026-09-03)
+
+Run `/gsd-validate-phase <N> <workspace>` after every phase. The workflow:
+
+1. **Read the repo first** — `webfetch https://github.com/<owner>/<repo>` to see the default branch, current state, and remote conventions BEFORE pushing anything. Do not assume the local monorepo branch is the right push source.
+2. **Detect state** — `A` (existing VALIDATION.md), `B` (no VALIDATION but SUMMARY exists), `C` (no SUMMARY). State C means "phase not executed, abort." For Phase 1, state B applies.
+3. **Build the requirement-to-test map** — for each `REQ-ID` in plan frontmatter, find the existing test file (or mark MISSING). Common gaps for design-system work: `UX-02` (skeleton, file-based only), `UX-05` (typography, no automated test by default), `UX-08` (keyboard floor, no automated test by default).
+4. **Spawn `gsd-nyquist-auditor`** to fill MISSING gaps. **Use the probe-before-real pattern** (see Subagent session-resumption protocol below) — spawn a throwaway probe first to capture `task_id`, then dispatch the real prompt on that same `task_id`. The auditor is READ-ONLY on impl files; only writes test files. Max 3 debug iterations per gap; ESCALATE if the impl doesn't satisfy the requirement (do not weaken assertions).
+6. **After auditor returns `## GAPS FILLED`**, run `vendor/bin/phpunit --testsuite=smoke` to confirm all green (baseline + new). Write/update `${PHASE_DIR}/${NN}-VALIDATION.md` per the template at `/home/user/hermesag/004/.opencode/gsd-core/templates/VALIDATION.md`. Set `status: validated`, `nyquist_compliant: true`.
+7. **Commit with explicit paths** — `git add <path>` for each new test + the VALIDATION.md. Never `git add -A`. The monorepo's `commit_docs: true` config does NOT apply when pushing to GitHub (see "GitHub push via subtree split" above).
+8. **Push** via subtree split (see above). On first push, expect to `merge --allow-unrelated-histories` because GitHub `main` and the local monorepo share commits but in different orders.
+
+**Smoke test framework conventions** for tickettrade (already established by phase 1):
+- Testsuite `smoke` in `phpunit.xml` runs `tests/Smoke/`.
+- Namespace `App\Tests\Smoke\Smoke_NN_MM`.
+- `final class`, `setUp()` loads paths via `dirname(__DIR__, 3)`, uses `assertMatchesRegularExpression` / `assertStringContainsString` (PHPUnit 11 — no `assertRegExp`).
+- File-based tests parse CSS/JS/HTML/Markdown content as strings; no browser required for `*.tokens.css`, `*.components.css`, `*.js`, `*.html`, `*.md` lookups.
 
 ## Known issues carried forward from prior phases
 
