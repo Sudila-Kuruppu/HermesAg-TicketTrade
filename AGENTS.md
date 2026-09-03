@@ -205,24 +205,6 @@ The opencode `task` tool can spawn a subagent and resume it via `task_id`. Two f
 
 **Naming convention for `task` descriptions:** prefix with `<N> GSD-<Role> <Plan-Id> <Stage>` so the manager's spot-check grep is human-readable. Example: `"1 GSD-Executor 05-02 Task 3 + SUMMARY"`, `"2 GSD-Verifier 05 phase"`. The `<N>` is the wave position (1, 2, ...); `<Role>` is `Executor` / `Verifier` / `Planner`; `<Plan-Id>` is `05-01` / `05-02`; `<Stage>` is the task name.
 
-## GSD validate-phase workflow (learned 2026-09-03)
-
-Run `/gsd-validate-phase <N> <workspace>` after every phase. The workflow:
-
-1. **Read the repo first** — `webfetch https://github.com/<owner>/<repo>` to see the default branch, current state, and remote conventions BEFORE pushing anything. Do not assume the local monorepo branch is the right push source.
-2. **Detect state** — `A` (existing VALIDATION.md), `B` (no VALIDATION but SUMMARY exists), `C` (no SUMMARY). State C means "phase not executed, abort." For Phase 1, state B applies.
-3. **Build the requirement-to-test map** — for each `REQ-ID` in plan frontmatter, find the existing test file (or mark MISSING). Common gaps for design-system work: `UX-02` (skeleton, file-based only), `UX-05` (typography, no automated test by default), `UX-08` (keyboard floor, no automated test by default).
-4. **Spawn `gsd-nyquist-auditor`** to fill MISSING gaps. **Use the probe-before-real pattern** (see Subagent session-resumption protocol below) — spawn a throwaway probe first to capture `task_id`, then dispatch the real prompt on that same `task_id`. The auditor is READ-ONLY on impl files; only writes test files. Max 3 debug iterations per gap; ESCALATE if the impl doesn't satisfy the requirement (do not weaken assertions).
-6. **After auditor returns `## GAPS FILLED`**, run `vendor/bin/phpunit --testsuite=smoke` to confirm all green (baseline + new). Write/update `${PHASE_DIR}/${NN}-VALIDATION.md` per the template at `/home/user/hermesag/004/.opencode/gsd-core/templates/VALIDATION.md`. Set `status: validated`, `nyquist_compliant: true`.
-7. **Commit with explicit paths** — `git add <path>` for each new test + the VALIDATION.md. Never `git add -A`. The monorepo's `commit_docs: true` config does NOT apply when pushing to GitHub (see "GitHub push via subtree split" above).
-8. **Push** via subtree split (see above). On first push, expect to `merge --allow-unrelated-histories` because GitHub `main` and the local monorepo share commits but in different orders.
-
-**Smoke test framework conventions** for tickettrade (already established by phase 1):
-- Testsuite `smoke` in `phpunit.xml` runs `tests/Smoke/`.
-- Namespace `App\Tests\Smoke\Smoke_NN_MM`.
-- `final class`, `setUp()` loads paths via `dirname(__DIR__, 3)`, uses `assertMatchesRegularExpression` / `assertStringContainsString` (PHPUnit 11 — no `assertRegExp`).
-- File-based tests parse CSS/JS/HTML/Markdown content as strings; no browser required for `*.tokens.css`, `*.components.css`, `*.js`, `*.html`, `*.md` lookups.
-
 ## Known issues carried forward from prior phases
 
 - **Phase 5 left a `01-PLAN-CHECK-v2.md` / `-v3.md` artifact pattern** at `.planning/phases/01-ux-foundation-design-system/`. Don't panic about these; they're from plan-checker iteration. The canonical plan is `01-PLAN.md`.
