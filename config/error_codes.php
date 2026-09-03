@@ -41,4 +41,12 @@ return [
     'E_DISPUTE_TEXT_TOO_LONG' => 'Dispute text must be 200 characters or fewer.',
     'E_POINTS_FROZEN'         => 'Points operations are frozen for this user.',
     'E_POINTS_WRITE'          => 'Could not record points.',
+
+    // Phase 5 additions (Plan 05-01).
+    'E_REVIEW_NOT_FOUND'      => 'Ticket not found.',
+    'E_REVIEW_NOT_ELIGIBLE'   => 'This ticket is not eligible for review.',
+    'E_REVIEW_ALREADY_LEFT'   => 'You have already reviewed this ticket.',
+    'E_REVIEW_INVALID_RATING' => 'Rating must be between 1 and 5.',
+    'E_REVIEW_WINDOW_CLOSED'  => 'Review window has closed.',
+    'E_REVIEW_FORBIDDEN'      => 'You are not a party to this ticket.',
 ];

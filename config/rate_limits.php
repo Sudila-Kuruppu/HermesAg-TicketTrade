@@ -29,4 +29,7 @@ return [
     'img_full' => ['max' => 30, 'window_minutes' => 1],
     'purchase' => ['max' => 10, 'window_minutes' => 60],
     'redemption' => ['max' => 5, 'window_minutes' => 60],
+
+    // Phase 5 additions (Plan 05-01) per NFR-SEC-007.
+    'review' => ['max' => 10, 'window_minutes' => 60],
 ];

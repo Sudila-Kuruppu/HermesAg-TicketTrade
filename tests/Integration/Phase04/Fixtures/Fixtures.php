@@ -82,6 +82,7 @@ abstract class Fixtures extends TestCase
     {
         $tables = [
             'audit_log',
+            'reviews',
             'reports',
             'tickets',
             'cron_log',

@@ -56,5 +56,6 @@ return [
     'POST /tickets/redeem' => ['App\Ticket\Action\RedeemAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => 'redemption']],
     'POST /tickets/{id}/confirm-session' => ['App\Ticket\Action\ConfirmSessionAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => null]],
     'POST /tickets/{id}/dispute' => ['App\Ticket\Action\DisputeAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => null]],
+    'POST /tickets/{id}/review' => ['App\Review\Action\ReviewAction', 'handlePost', ['auth' => true, 'admin' => false, 'csrf' => true, 'rate_limit' => 'review']],
     'GET /tickets/{id}' => ['App\Ticket\Action\TicketDetailAction', 'handle', ['auth' => true, 'admin' => false, 'csrf' => false, 'rate_limit' => null]],
 ];

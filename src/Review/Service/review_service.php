@@ -133,10 +133,12 @@ class review_service
                     'message' => 'Review window has closed.',
                 ]);
             }
-            $windowOk = (bool) $pdo->query(
-                "SELECT (CAST('{$redeemedAt}' AS DATETIME) >= DATE_SUB(NOW(), INTERVAL "
-                . self::REVIEW_WINDOW_DAYS . " DAY)) AS w"
-            )->fetchColumn();
+            $windowStmt = $pdo->prepare(
+                'SELECT (CAST(? AS DATETIME) >= DATE_SUB(NOW(), INTERVAL '
+                . self::REVIEW_WINDOW_DAYS . ' DAY)) AS w'
+            );
+            $windowStmt->execute([(string) $redeemedAt]);
+            $windowOk = (bool) $windowStmt->fetchColumn();
             if (!$windowOk) {
                 $pdo->rollBack();
                 return Error::envelope(false, null, [
