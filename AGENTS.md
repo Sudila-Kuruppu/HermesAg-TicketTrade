@@ -155,3 +155,41 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+<!-- GSD:env-quirks-start source:learned 2026-09-03 from phase 5 execution -->
+
+## IDX / opencode Runtime Quirks (learned in Phase 5)
+
+**Git root is the monorepo, not tickettrade.** `git rev-parse --show-toplevel` returns `/home/user/hermesag` (the IDX workspace root), not `004/tickettrade`. tickettrade is a subdirectory. Implications:
+- Worktree isolation targets the parent repo and pulls in unrelated dirty state (Archon, cole-medin-knowledge-base, .idx/, .planning artifacts). Avoid worktrees in this layout — set `workflow.use_worktrees=false` in `.planning/config.json` before dispatching executors.
+- `git add -A` from the parent root is destructive. Executors must stage only paths under `004/tickettrade/` that belong to their plan's `files_modified` list. Use explicit paths.
+- Pre-existing untracked files at the parent root (e.g. `004/tickettrade/ARCHITECTURE-SPINE.md`, `004/tickettrade/.planning/milestone.lock`, `004/tickettrade/config/db.php`, `004/tickettrade/public/uploads/listings/...`) are NOT orphans to clean up — leave them alone.
+
+**MySQL is reachable from the executor's bash tool, but credentials are not always on the default `mysql -u root` path.** Before a subagent burns time on a `vendor/bin/phpunit` failure that smells like "no test DB", check:
+- `config/db.test.php` for the test DSN + credentials.
+- `config/db.php` for the dev DSN.
+- If PHPUnit integration tests fail with `SQLSTATE[HY000] [2002]` or `Access denied`, the issue is usually DSN/credentials, not code. Read the test bootstrap (`tests/bootstrap.php` or `phpunit.xml` `<php><env>`) before debugging source.
+
+**Test DB location:** `config/db.test.php` is the source of truth. `vendor/bin/phpunit` runs from the tickettrade project root (`/home/user/hermesag/004/tickettrade`).
+
+**Composer is local to tickettrade.** Run `composer install` from `/home/user/hermesag/004/tickettrade`, not the parent. `vendor/bin/phpunit` and `vendor/bin/phpcs` only exist there.
+
+## Subagent session-resumption protocol (IDX/opencode)
+
+The opencode `task` tool can spawn a subagent and resume it via `task_id`. Two failure modes are common here and have known recovery:
+
+1. **Subagent gets aborted mid-run (Ctrl-C, network blip, user stop).** The orchestrator may have lost the `task_id` if the user aborted before the spawn returned. Recovery: spawn a *throwaway* probe (`prompt: "hi"`, any `gsd-*` agent) — the returned `task_id` confirms the runtime can spawn. Then **send an empty prompt `[continue]` to the original task_id** if it was captured. The child resumes its prior context (files read, decisions made) and picks up. Do NOT re-dispatch the full plan — the child has the state.
+
+2. **Subagent returns an empty `task_result`.** This is a network issue, not a logic failure. The child likely finished the work and just lost the return envelope. Recovery: check the filesystem for the expected outputs (SUMMARY.md, commits, files). If they exist, the work is done — proceed. If they don't, send `[continue]` to the same task_id; the child will either finish or report the actual blocker.
+
+3. **Spawning a real run before getting the id is wasteful** because if the user aborts you can't reach the child. Standard order: probe (`hi`) → capture `task_id` → run real prompt on that same `task_id` (resume). The probe session is fresh but cheap; resuming on it lets the user reach into it if they need to.
+
+**Naming convention for `task` descriptions:** prefix with `<N> GSD-<Role> <Plan-Id> <Stage>` so the manager's spot-check grep is human-readable. Example: `"1 GSD-Executor 05-02 Task 3 + SUMMARY"`, `"2 GSD-Verifier 05 phase"`. The `<N>` is the wave position (1, 2, ...); `<Role>` is `Executor` / `Verifier` / `Planner`; `<Plan-Id>` is `05-01` / `05-02`; `<Stage>` is the task name.
+
+## Known issues carried forward from prior phases
+
+- **Phase 5 left a `01-PLAN-CHECK-v2.md` / `-v3.md` artifact pattern** at `.planning/phases/01-ux-foundation-design-system/`. Don't panic about these; they're from plan-checker iteration. The canonical plan is `01-PLAN.md`.
+- **`/home/user/hermesag/004/.planning/async-jobs/` does not exist.** Plan 05-02 resume guidance references this path; it is not used in this project — resume via `task_id` only.
+- **`.planning/STATE.md` and `state.json` can drift from each other** if updated ad-hoc. After every phase, run `node /home/user/.claude/gsd-core/bin/gsd-tools.cjs state complete-phase --phase <N>` from the tickettrade project root — this is the canonical write path and updates both.
+- **`milestone.lock` at `/home/user/hermesag/004/tickettrade/.planning/milestone.lock`** is a runtime lockfile (untracked). Do not commit it.
+<!-- GSD:env-quirks-end -->

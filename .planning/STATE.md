@@ -22,7 +22,8 @@ current_phase_name: Reviews & Ratings
 See: .planning/PROJECT.md (updated 2026-08-26)
 
 **Core value:** Every trade ends with proof — verified NSBM students trading peer-to-peer with a confirmable digital ticket, gamified reputation, and seller ratings, so nobody trades blind.
-**Current focus:** Phase 04 — purchases-tickets-lifecycle (Plans 04-01, 04-02, 04-03 complete; milestone ready for verification)
+**Current focus:** Phase 06 — points-ranks-leaderboards (next, after Phase 5 complete)
+**Phase 5 verification:** PASSED (2026-09-03) — 8/8 must-haves verified; 7 commits (4 × 05-01, 3 × 05-02); full phase-5 suite 56/56 (204 assertions); migration `017_reviews.sql` idempotent. Two plans: 05-01 (Reviews Service + Actions + View partials) and 05-02 (Public Profile Aggregation + Listing Modal).
 **Phase 3 verification:** PASSED (2026-09-02) — 27/27 must-haves verified, 304/1462 tests green, phpcs 22 auto-fixable style warnings on Phase 3-04 landing files only (no functional impact).
 **Phase 4 Plan 01:** COMPLETE (2026-09-02) — 49 new tests across 10 files (all green); 353 tests in full suite; phpcs 0 errors.
 **Phase 4 Plan 02:** COMPLETE (2026-09-02) — 50 new tests across 8 files (View tests for My Tickets / Sales / Purchases + flow tests for Buy / Redeem / ConfirmSession / Dispute + route guard). Full suite: 403 tests, 2795 assertions. phpcs 0 errors.
