@@ -22,6 +22,11 @@ Thumbs.db
 
 # Data uploads (configured outside webroot)
 /data/uploads/
+/public/uploads/listings/
+
+# DB credentials (local only)
+/config/db.php
+/config/db.test.php
 
 # Logs
 *.log
