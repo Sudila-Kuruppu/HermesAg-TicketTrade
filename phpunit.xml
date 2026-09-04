@@ -38,6 +38,16 @@
             <directory>tests/Unit/Phase05</directory>
             <directory>tests/Integration/Phase05</directory>
         </testsuite>
+        <testsuite name="phase-6-unit">
+            <directory>tests/Unit/Phase06</directory>
+        </testsuite>
+        <testsuite name="phase-6-integration">
+            <directory>tests/Integration/Phase06</directory>
+        </testsuite>
+        <testsuite name="phase-6">
+            <directory>tests/Unit/Phase06</directory>
+            <directory>tests/Integration/Phase06</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
