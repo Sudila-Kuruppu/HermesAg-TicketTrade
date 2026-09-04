@@ -85,6 +85,13 @@ if (!empty($profile['created_at'])) {
         <?php endif; ?>
         <div class="d-flex flex-wrap align-items-center gap-3">
           <?= \App\Support\View::partial('rank_badge', ['tier' => $profile['tier'] ?? 'E', 'size' => 32]) ?>
+          <?php
+            // On-Break pill on public profiles too — the rank badge
+            // wrapping is the grayed-out signal. Velocity flag is
+            // OWNER-only per PTS-09 privacy (T-06-19).
+            $laPublic = $profile['last_active_at'] ?? null;
+            ?>
+          <?= \App\Support\View::partial('on_break_pill', ['lastActiveAt' => $laPublic]) ?>
           <span class="body-sm" data-testid="public-profile-points"><strong><?= (int) ($profile['points'] ?? 0) ?></strong> points</span>
           <?php if ($createdAtFormatted !== '') : ?>
             <span class="body-sm text-on-surface-variant" data-testid="public-profile-joined">Joined <?= htmlspecialchars($createdAtFormatted, ENT_QUOTES, 'UTF-8') ?></span>
@@ -93,7 +100,7 @@ if (!empty($profile['created_at'])) {
       </div>
       <div class="d-flex flex-column gap-2 flex-shrink-0">
         <?php if ($is_owner) : ?>
-          <a href="/profile" class="btn btn-primary" data-bs-toggle="tooltip" title="Edit your profile">Edit profile</a>
+          <a href="/profile/edit" class="btn btn-primary" data-bs-toggle="tooltip" title="Edit your profile">Edit profile</a>
         <?php endif; ?>
         <a href="#" class="btn btn-outline-secondary disabled"
            aria-disabled="true"
@@ -101,6 +108,9 @@ if (!empty($profile['created_at'])) {
            title="Coming soon"
            data-testid="public-profile-report-user">Report user</a>
       </div>
+    </div>
+    <div class="profile-gamification">
+      <?= \App\Support\View::partial('tier_progress', ['userId' => (int) ($profile['user_id'] ?? 0), 'points' => (int) ($profile['points'] ?? 0), 'tier' => (string) ($profile['tier'] ?? 'E')]) ?>
     </div>
     <hr class="my-4">
     <div class="row g-3 text-center" data-testid="public-profile-stats">

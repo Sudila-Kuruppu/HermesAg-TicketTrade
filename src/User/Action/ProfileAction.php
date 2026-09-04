@@ -3,13 +3,18 @@
 /**
  * TicketTrade — User\Action\ProfileAction
  *
- * Phase 2 Plan 02-02.
+ * Phase 2 Plan 02-02 ships handle() (owner profile edit) + handlePost().
  *
- * The /profile route (auth-required per D-08). The owner edits their
- * full_name, bio, whatsapp, avatar_id. Per D-15 the nickname field is
- * NOT in the form (locked at registration).
+ * Phase 6 Plan 06-03 RESHAPES the routing:
+ *   - handle() is RENAMED to handleEdit() and renders profile_edit.php
+ *     (the owner edit form) — wired to /profile/edit via the route map.
+ *   - A NEW handle() renders profile.php — the owner Profile page with
+ *     rank badge + tier progress + on_break_pill + velocity_flag_pill +
+ *     Recent activity (D-07). Wired to /profile (the canonical owner
+ *     view). The "Edit profile" affordance on the public profile still
+ *     links to /profile/edit.
  *
- * The /profile/{nickname} public read view is owned by PublicProfileAction
+ * The GET /profile/{nickname} public view is owned by PublicProfileAction
  * (Plan 02-03).
  */
 
@@ -24,12 +29,74 @@ use App\User\Service\user_service;
 
 class ProfileAction
 {
+    /**
+     * GET /profile (Plan 06-03: owner Profile view).
+     *
+     * Renders profile.php with the Phase 6 gamification surface:
+     *   - profile (sanitized user row)
+     *   - is_owner = true
+     *   - points_frozen (bool) — drives velocity_flag_pill
+     *   - last_active_at (string) — drives on_break_pill
+     *   - recent_activity (5 points_log rows) — drives Recent activity section
+     */
     public function handle(): void
     {
         $user = AuthGuard::currentUser();
-        // Router already ran requireAuth(), but defend in depth.
         if ($user === null) {
             header('Location: /login?next=/profile');
+            exit;
+        }
+        $profile = user_service::getById((int) $user['user_id']);
+        if ($profile === null) {
+            View::flash('error', 'Profile not found.');
+            header('Location: /board');
+            exit;
+        }
+        // Pull the full row (with points_frozen, last_active_at, points,
+        // tier) — sanitizeUser strips these for the View, but the partials
+        // need them.
+        $pdo = \App\Support\Db::pdo();
+        $stmt = $pdo->prepare(
+            'SELECT points, points_frozen, tier, last_active_at, current_streak '
+            . 'FROM users WHERE user_id = ?'
+        );
+        $stmt->execute([(int) $user['user_id']]);
+        $gamification = (array) $stmt->fetch();
+
+        $recentActivity = user_service::getRecentActivityForProfile(
+            (int) $user['user_id'],
+            5
+        );
+
+        $GLOBALS['_tt_form_error'] = null;
+        View::render(
+            __DIR__ . '/../View/profile.php',
+            [
+                'csrf_token' => Csrf::token(),
+                'profile' => $profile,
+                'points' => (int) ($gamification['points'] ?? 0),
+                'tier' => (string) ($gamification['tier'] ?? 'E'),
+                'points_frozen' => (bool) ($gamification['points_frozen'] ?? false),
+                'last_active_at' => $gamification['last_active_at'] ?? null,
+                'current_streak' => (int) ($gamification['current_streak'] ?? 0),
+                'recent_activity' => $recentActivity,
+                'is_owner' => true,
+            ]
+        );
+    }
+
+    /**
+     * GET /profile/edit (Plan 06-03: previously was handle()).
+     *
+     * Renders profile_edit.php — the owner edit form. Renamed from
+     * handle() so the route map can have a clean separation between
+     * /profile (view) and /profile/edit (form).
+     */
+    public function handleEdit(): void
+    {
+        $user = AuthGuard::currentUser();
+        if ($user === null) {
+            header('Location: /login?next=/profile/edit');
             exit;
         }
         $profile = user_service::getById((int) $user['user_id']);
@@ -49,11 +116,14 @@ class ProfileAction
         );
     }
 
-    public function handlePost(): void
+    /**
+     * POST /profile/edit (Plan 06-03: previously was handlePost()).
+     */
+    public function handleEditPost(): void
     {
         $user = AuthGuard::currentUser();
         if ($user === null) {
-            header('Location: /login?next=/profile');
+            header('Location: /login?next=/profile/edit');
             exit;
         }
         $fullName = trim((string) ($_POST['full_name'] ?? ''));
