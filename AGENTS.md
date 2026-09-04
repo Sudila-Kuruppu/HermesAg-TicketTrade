@@ -98,15 +98,16 @@ Source of truth: `config/team.php` (consumed by the landing-page Team section pe
 
 ### Git workflow
 
-**Repository layout (learned 2026-09-03):** The local monorepo at `/home/user/hermesag` holds many sub-projects under numbered dirs (`001/`, `002/`, `003/`, `004/tickettrade/`, ...). The **public GitHub repo** (`https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade`) is the **tickettrade-only** repo, not the monorepo. The local `main` branch is `NSBM-EventHub` (monorepo trunk); the GitHub repo's default branch is `main` (tickettrade-only trunk). Never conflate them.
+**Repository layout (learned 2026-09-04):** The local monorepo at `/home/user/hermesag` holds many sub-projects under numbered dirs (`001/`, `002/`, `003/`, `004/tickettrade/`, ...). The **public GitHub repo** (`https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade`) is the **tickettrade-only** repo, not the monorepo. The local trunk is the `NSBM-EventHub` branch; the GitHub repo's trunk is `main`. Never conflate them. The two repos have **completely different histories** — the GitHub repo has only what was subtree-split and pushed from the monorepo; the monorepo's `004/tickettrade/` is always ahead of GitHub `main` (it has every phase). The per-phase branch workflow below is what reconciles this.
 
 **Branch + push workflow:**
-- Branch from `main` on GitHub for new work; never push directly to `main`; PRs only, one approval required.
-- Local dev happens on `NSBM-EventHub` (or a feature branch off it). Before pushing to GitHub, see `<!-- GSD:env-quirks-end -->` → "GitHub push via subtree split" below — that section is the canonical procedure.
+- Local dev happens on `NSBM-EventHub` (or a feature branch off it). Commit with **explicit paths** to `git add` — never `git add -A` from the monorepo root (`git add 004/tickettrade/<file>` is the safe form).
+- Pushes to GitHub go to a **per-phase branch** named `phase-<NN>-<slug>` (e.g. `phase-03-validation`, `phase-04-purchases-tickets`). The branch is **force-pushed from the monorepo's tickettrade subtree** and then opened as a PR against GitHub `main`. See `<!-- GSD:env-quirks-end -->` → "GitHub push via subtree split" below for the exact procedure.
+- **Never push to GitHub `main` directly** — PRs only, one approval required.
 - One approval per PR. Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - Phase work lands via GSD phases; small fixes via `/gsd-quick`.
 
-**Per-phase branches (added 2026-09-03):** Each phase gets its own branch on the GitHub repo to isolate phase commits for review/rollback. Convention: `phase-<NN>-<slug>` (e.g. `phase-01-ux-foundation-design-system`, `phase-02-student-authentication-profiles`). The phase branch is created at phase completion, force-pushed from the monorepo's phase work, then merged into `main` (or PR'd for review). Phase directory naming inside `.planning/phases/` matches the branch slug.
+**Per-phase branches (added 2026-09-04):** Each phase's GitHub branch is a **self-contained snapshot of the full tickettrade history at the moment the phase is done**, not just the new phase commits. This is how the monorepo→GitHub split works: the per-phase branch IS the entire repo, ready to PR into `main`. Branch names that exist as of 2026-09-04: `phase-01-validation`, `phase-03-validation`. Convention: `phase-<NN>-<slug>` where `<slug>` is a short label (e.g. `validation`, `purchases-tickets`, `reviews-ratings`). The corresponding monorepo commits live on `NSBM-EventHub`; the `.planning/phases/<NN>-<slug>/` directory naming matches the branch slug.
 
 <!-- GSD:conventions-end -->
 
@@ -183,17 +184,22 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 
 **Composer is local to tickettrade.** Run `composer install` from `/home/user/hermesag/004/tickettrade`, not the parent. `vendor/bin/phpunit` and `vendor/bin/phpcs` only exist there.
 
-**GitHub push via subtree split (learned 2026-09-03 from validate-phase work):** Because the GitHub repo is tickettrade-only and local work happens inside the monorepo at `004/tickettrade/`, you cannot `git push` directly — the local repo's root is `/home/user/hermesag`, not the tickettrade subdir. Procedure:
+**GitHub push via subtree split (learned 2026-09-04 from validate-phase work):** Because the GitHub repo is tickettrade-only and local work happens inside the monorepo at `004/tickettrade/`, you cannot `git push` directly — the local repo's root is `/home/user/hermesag`, not the tickettrade subdir. Procedure (verified working 2026-09-04 pushing `phase-03-validation`):
 
-1. Commit your work on the local monorepo branch (e.g. `NSBM-EventHub`) with **explicit paths** to `git add` — never `git add -A` from the monorepo root (it would sweep in unrelated dirty state from sibling projects). `git add 004/tickettrade/<file>` is the safe form.
-2. From the monorepo root `/home/user/hermesag`, run `git subtree split --prefix=004/tickettrade -b tickettrade-split HEAD`. This produces a branch whose tree is **only** the tickettrade contents, preserving history.
-3. Fetch the GitHub default: `git fetch <remote> main`. If the GitHub `main` has diverged (it usually has — phases 2..5 were committed directly on GitHub `main` before the monorepo sync), `git merge --allow-unrelated-histories` it into `tickettrade-split` to align.
-4. Push to GitHub with explicit refspec: `git push <remote> tickettrade-split:<branch-name>` — typically `:main` (overwrite) or `:phase-XX-<slug>` (per-phase branch per the new convention above).
-5. Delete the local `tickettrade-split` branch when done. Do NOT keep it as a long-lived local branch — it diverges from the source-of-truth (`NSBM-EventHub`) on every new commit.
+1. **Commit on the local monorepo branch** (`NSBM-EventHub` or a feature branch off it) with **explicit paths** to `git add` — never `git add -A` from the monorepo root (it would sweep in unrelated dirty state from sibling projects). `git add 004/tickettrade/<file>` is the safe form. Conventional commit messages: `feat:`, `fix:`, `docs:`, `chore:`.
+2. **Subtree split** from the monorepo root `/home/user/hermesag`: `git subtree split --prefix=004/tickettrade -b tt-push HEAD`. This produces a local branch whose tree is **only the tickettrade contents, preserving the full history of every phase** (148+ commits as of 2026-09-04).
+3. **Push to a per-phase branch on GitHub**: `git push -f https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade.git tt-push:phase-<NN>-<slug>`. The `-f` is required because the per-phase branch is a self-contained snapshot, not a delta on top of GitHub `main`. The first push to a new branch does not need `-f`, but subsequent re-pushes to the same branch do.
+4. **Open a PR** at https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade/pull/new/phase-<NN>-<slug>. One approval required.
+5. **Delete the local `tt-push` branch** immediately: `git branch -D tt-push`. Do NOT keep it as a long-lived local branch — it diverges from the source-of-truth (`NSBM-EventHub`) on every new commit.
+6. **Verify**: `git ls-remote https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade` should show your new branch in the output. The push's stdout ends with `* [new branch]      tt-push -> phase-XX-<slug>` on success.
+
+**Auth:** GitHub credentials are handled by `gh auth git-credential` (Nix package at `/nix/store/.../gh-*/bin/gh`). If the credential helper path in `.gitconfig` points at a stale Nix path, the push will print warnings but still succeed (the helper only runs on credential-required operations; the push uses the cached PAT). If a push hangs on `Username for 'https://github.com':`, run `gh auth status` and re-auth.
 
 **Do NOT push the local `NSBM-EventHub` branch directly.** It contains every sub-project (`001/`, `002/`, ...), worktrees, and dirty state that has nothing to do with tickettrade. Pushing it once (in 2026-09-03 validate-phase work) created a branch on GitHub with the wrong content and had to be deleted.
 
-**The `HermesAg-TicketTrade` remote** is the public repo. The `origin` remote in the monorepo points to `/home/user/hermesag` (a local path) and is unrelated.
+**Do NOT merge GitHub `main` into `tt-push` before pushing.** The per-phase branch is intentionally a self-contained snapshot. If you need GitHub `main`'s history in your branch, fetch it and use it as the base of a separate PR instead.
+
+**The `HermesAg-TicketTrade` remote** is the public repo. The `origin` remote in the monorepo points to `/home/user/hermesag` (a local path) and is unrelated. Add the GitHub remote on-demand with `git remote add upstream https://github.com/Sudila-Kuruppu/HermesAg-TicketTrade.git` if you need it persistently; the procedure above uses the full URL inline so you don't need to.
 
 ## Subagent session-resumption protocol (IDX/opencode)
 
