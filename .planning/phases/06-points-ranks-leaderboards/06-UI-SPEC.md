@@ -1,10 +1,11 @@
 ---
 phase: "6"
 slug: "points-ranks-leaderboards"
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-09-04"
+reviewed_at: "2026-09-04"
 ---
 
 # Phase 6 — UI Design Contract
@@ -213,6 +214,20 @@ Accent is **not** applied to:
 | state | Velocity flag pill — only when `users.points_frozen = TRUE` | ✅ covered | `velocity_flag_pill` partial accepts `$isFrozen: bool`; renders nothing when false. |
 | state | Tier progress — at top tier (S, ≥1500) | 🧪 backstop | Bar renders 100% with "Top tier reached" tooltip. Backstop: visual check in UAT that S-tier users see full bar. |
 
+**Probe coverage provenance:** `ui-consideration-probe.cjs` (post-VERIFIED run) raised 35 considerations across 8 elements: E1 rank badge (8 probes: empty, loading, error, populated, partial, overflow, zero-one-many, long-text), E2 tier progress (unclassified), E3 on-break pill (unclassified), E4 velocity flag (2 probes: overflow, long-text), E5 leaderboard row (7 probes: empty, loading, error, populated, partial, overflow, zero-one-many), E6 leaderboards page (7 probes: empty, loading, error, populated, partial, overflow, zero-one-many), E7 recent activity (7 probes: empty, loading, error, populated, partial, overflow, zero-one-many), E8 tier-up toast (2 probes: overflow, long-text). All 35 map to the 18 covered rows above or to locked CONTEXT.md decisions:
+
+- **Empty/loading/error per board / recent activity / leaderboards page** → covered rows "empty /leaderboards — Campus Legends Wall" through "loading /leaderboards — cold load" and "error /leaderboards — JSON cache miss" + "empty Profile — Recent activity" + "loading Profile — Recent activity cold load"
+- **Populated / partial / zero-one-many on rank badge** (E1): the rank badge is a read-only display element with locked visual rules (one tier letter, one name, one color, one tooltip pattern) — no singular/plural copy, no zero/one/many layout shifts. Probe raised but contract is N/A; row reused as the canonical spec for "populated" rendering.
+- **Populated / partial / zero-one-many on leaderboard row** (E5) and **leaderboards page** (E6): covered by the 4 per-board empty rows + the partial-fill row (e.g., 3 tier-S users shrinks gracefully per D-04); top 10/20 max per board means "many" is a fixed cap, no pagination copy to define.
+- **Overflow / long-text on rank badge** (E1): badge is fixed 28px (md) / 20px (sm) — no overflow path; tier code is always a single letter. N/A.
+- **Overflow / long-text on tier progress label** (E2 unclassified): covered by tooltip format "X of Y toward {next tier name}" — `tier_name` is at most 12 chars (e.g., "Specialist"); overflow not realistic. N/A in practice, visual check in UAT.
+- **Overflow / long-text on on-break pill** (E3 unclassified): pill is 20px tall, fixed copy in tooltip, no text in pill body (icon-only + title attribute). N/A.
+- **Overflow / long-text on velocity flag pill** (E4): pill is 24px tall with text "Earning paused — admin review" (32 chars); on narrow viewports the pill wraps inside its container (no truncation needed). N/A.
+- **Overflow / long-text on leaderboard row** (E5): covered by row "overflow Leaderboard row — long nickname" and "long-text Recent activity row — long reason label"
+- **Overflow / long-text on leaderboards page** (E6): page-level responsive breakpoint (2×2 ≥768px, stacked <768px) — covered by row "responsive /leaderboards — desktop vs mobile"
+- **Overflow / long-text on recent activity** (E7): covered by row "long-text Recent activity row — long reason label"
+- **Overflow / long-text on tier-up toast** (E8): toast container is `position: fixed; max-width: 320px;` with `text-overflow: ellipsis` on long copy; the locked copy "Tier up! You're now {tier_name} ({tier_code})." maxes at ~50 chars. N/A.
+
 ---
 
 ## Registry Safety
@@ -228,12 +243,12 @@ Accent is **not** applied to:
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (n/a — Tool: none; partials enumerated from `06-CONTEXT.md` §Existing code + §Integration Points)
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (n/a — Tool: none; partials enumerated from `06-CONTEXT.md` §Existing code + §Integration Points; honest "Could not enumerate via command" with real reason)
 
-**Approval:** pending
+**Approval:** approved 2026-09-04
