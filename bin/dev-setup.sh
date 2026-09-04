@@ -90,9 +90,20 @@ if [ ! -d vendor ]; then
     composer install --no-interaction --no-progress
 fi
 
-# 6. Run migrations
-echo "[dev-setup] Running php migrate.php..."
-php migrate.php
+# 6. Run migrations only if the DB is empty. Re-running migrations
+# against a populated DB fails on UNIQUE constraints (categories
+# already seeded) and other one-shot INSERTs. If a fresh DB is
+# required, run `bin/test` which handles the reset.
+EXPECTED_TABLES=$(ls migrations/*.sql 2>/dev/null | wc -l)
+ACTUAL_TABLES=$(mysql -u"$DB_USER" ${SOCKET:+--socket="$SOCKET"} -N -B tickettrade -e \
+  "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='tickettrade'" 2>/dev/null || echo 0)
+if [ "$ACTUAL_TABLES" -lt "$EXPECTED_TABLES" ]; then
+  echo "[dev-setup] Running php migrate.php (DB has $ACTUAL_TABLES tables, $EXPECTED_TABLES expected)..."
+  : > migrations/.applied
+  php migrate.php
+else
+  echo "[dev-setup] Migrations already applied ($ACTUAL_TABLES/$EXPECTED_TABLES tables). Skipping."
+fi
 
 echo ""
 echo "[dev-setup] DONE"
