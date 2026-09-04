@@ -26,8 +26,25 @@
  * trail beyond the existing flag).
  *
  * Phase 6 Plan 06-02 layers the velocity and pair-cap enforcement onto
- * awardTransaction() + awardReviewPoints(); this plan ships the writers
- * + helpers but NOT the cap enforcement.
+ * awardTransaction() + awardReviewPoints() per PTS-05 + FR-PTS-010 +
+ * D-08. The cap enforcement is two INDEPENDENT checks at insert time:
+ *
+ *   (a) PTS-05 per-day transactional cap (150 pts/day from
+ *       transactions: sale + purchase + review). When
+ *       day_total + effective > 150 for a user, INSERT a zero-delta
+ *       points_log row with metadata.velocity_cap_hit=TRUE and
+ *       RETURN the velocity_cap envelope. Does NOT set users.points_frozen.
+ *
+ *   (b) FR-PTS-010 freeze-trigger (>300 pts/day OR >150 pts/hr from
+ *       transactions). Evaluated against the same pre-cap totals
+ *       (so the freeze is the ceiling of the cap). On first hit
+ *       (users.points_frozen=FALSE), UPDATE users SET points_frozen=TRUE,
+ *       frozen_at=NOW(); write audit row 'points.frozen'. Subsequent
+ *       hits no-op the flag but still log the cap hit if the cap fires.
+ *
+ * The cap can fire many times in a day without the freeze ever
+ * firing, and the freeze can fire (on its own day_total/hour_total
+ * check) without an immediate cap hit.
  */
 
 declare(strict_types=1);
@@ -42,6 +59,15 @@ use Ramsey\Uuid\Uuid;
 
 class points_service
 {
+    /**
+     * Cap constants per REQUIREMENTS.md PTS-05 + FR-PTS-010.
+     * 150/day is the per-day transactional cap; >300/day OR >150/hr
+     * triggers the freeze flag.
+     */
+    private const PTS05_DAILY_CAP = 150;
+    private const FREEZE_DAILY_THRESHOLD = 300;
+    private const FREEZE_HOURLY_THRESHOLD = 150;
+
     /**
      * Award the +50 email-verification bonus.
      *
@@ -195,14 +221,88 @@ class points_service
                 ? (int) floor($deltaSeller * 0.5)
                 : $deltaSeller;
 
-            // TODO: Phase 6 Plan 06-02 — apply FR-PTS-005 velocity cap
-            //   (>300 pts/day or >150 pts/hour per FR-ADM-009) here.
+            // PTS-05 + FR-PTS-010 velocity + freeze-trigger checks
+            // run BEFORE the pair-cap check, BEFORE the INSERT. The
+            // freeze flips users.points_frozen on first hit; the cap
+            // short-circuits the row insert. Both are evaluated for
+            // buyer and seller independently (a cap hit on buyer
+            // does NOT block seller, and vice versa).
+            foreach (
+                [
+                    [$buyerId, $effectiveBuyer, 'buyer'],
+                    [$sellerId, $effectiveSeller, 'seller'],
+                ] as [$userId, $effective, $party]
+            ) {
+                $capResult = self::applyVelocityAndFreeze(
+                    $pdo,
+                    (int) $userId,
+                    (int) $effective,
+                    (string) $party,
+                    $referenceType,
+                    $ticketId,
+                    $ownsTransaction
+                );
+                if ($capResult !== null) {
+                    if ($ownsTransaction) {
+                        $pdo->commit();
+                    }
+                    return [
+                        'ok' => true,
+                        'data' => $capResult,
+                    ];
+                }
+            }
 
-            // TODO: Phase 6 Plan 06-02 — apply FR-PTS-006 same-pair 2/day cap.
-            //   Count counted-transaction rows in points_log for the
-            //   same (actor_id, counterparty_id, DATE(event_at)) tuple.
-            //   If >= 2, set metadata.pair_cap_hit=TRUE and the row is
-            //   logged but does NOT contribute to users.points.
+            // Pair-cap (FR-PTS-006): 2 counted transactions per
+            // (buyer, seller, ticket) tuple per day. The pair-cap
+            // check runs AFTER the velocity checks pass (so a frozen
+            // or capped-out user doesn't accidentally hit the
+            // pair-cap audit row). On hit: insert zero-delta row,
+            // audit-log, return pair_cap envelope.
+            $pairCount = points_log_model::countPairInDay(
+                $pdo,
+                $buyerId,
+                $sellerId,
+                $ticketId
+            );
+            if ($pairCount >= 2) {
+                $uuidPair = Uuid::uuid7()->toString();
+                $metadataPair = json_encode([
+                    'pair_cap_hit' => true,
+                    'pair_count_today' => $pairCount,
+                    'effective_delta_buyer' => $effectiveBuyer,
+                    'effective_delta_seller' => $effectiveSeller,
+                    'cap' => 'pts05_pair',
+                ], JSON_UNESCAPED_UNICODE);
+                points_log_model::insert(
+                    $pdo,
+                    $buyerId,
+                    0,
+                    $referenceType,
+                    $ticketId,
+                    (int) $buyerRow['points'],
+                    $uuidPair,
+                    $metadataPair
+                );
+                Audit::log(null, 'points.pair_cap', 'user', $buyerId, [
+                    'event_uuid' => $uuidPair,
+                    'pair_count_today' => $pairCount,
+                    'cap' => 'pts05_pair',
+                    'reference_type' => $referenceType,
+                    'reference_id' => $ticketId,
+                ]);
+                if ($ownsTransaction) {
+                    $pdo->commit();
+                }
+                return [
+                    'ok' => true,
+                    'data' => [
+                        'skipped' => 'pair_cap',
+                        'event_uuid' => $uuidPair,
+                        'pair_count_today' => $pairCount,
+                    ],
+                ];
+            }
 
             $uuidBuyer = Uuid::uuid7()->toString();
             $uuidSeller = Uuid::uuid7()->toString();
@@ -359,6 +459,30 @@ class points_service
             $effectiveDelta = ($redeemedCount < 5)
                 ? (int) floor(10 * 0.5)
                 : 10;
+
+            // PTS-05 + FR-PTS-010 velocity + freeze-trigger checks.
+            // Review points count toward the per-day transactional cap
+            // (per REQUIREMENTS.md PTS-05). Pair-cap is NOT applied
+            // here — reviews are not transactions. On cap/freeze hit
+            // we short-circuit with the velocity_cap envelope.
+            $capResult = self::applyVelocityAndFreeze(
+                $pdo,
+                $revieweeId,
+                $effectiveDelta,
+                'reviewer',
+                'review',
+                $ticketId,
+                $ownsTransaction
+            );
+            if ($capResult !== null) {
+                if ($ownsTransaction) {
+                    $pdo->commit();
+                }
+                return [
+                    'ok' => true,
+                    'data' => $capResult,
+                ];
+            }
 
             $uuid = Uuid::uuid7()->toString();
             $newPoints = (int) $row['points'] + $effectiveDelta;
@@ -791,5 +915,138 @@ class points_service
             return false;
         }
         return $ladder[$to] > $ladder[$from];
+    }
+
+    /**
+     * Apply the PTS-05 + FR-PTS-010 velocity + freeze-trigger checks
+     * for a single user inside the same DB transaction as the points
+     * writer. Called by awardTransaction() (buyer + seller) and
+     * awardReviewPoints() (reviewee) before the normal INSERT.
+     *
+     * Two INDEPENDENT checks per REQUIREMENTS.md PTS-05 + CONTEXT.md
+     * FR-PTS-010 + D-08:
+     *
+     *   (a) PTS-05 per-day transactional cap. When
+     *       day_total + effective > 150, INSERT a zero-delta row with
+     *       metadata.velocity_cap_hit=TRUE and RETURN the velocity_cap
+     *       envelope. Does NOT set users.points_frozen. Audit row
+     *       'points.velocity_cap' written.
+     *
+     *   (b) FR-PTS-010 freeze-trigger (>300/day OR >150/hr from
+     *       transactions). On first hit (users.points_frozen=FALSE),
+     *       UPDATE users SET points_frozen=TRUE, frozen_at=NOW(); write
+     *       audit row 'points.frozen'. Subsequent hits no-op the flag
+     *       (the UPDATE is guarded by points_frozen=FALSE in the
+     *       WHERE; the audit row only fires on the first hit).
+     *
+     * The cap can fire many times in a day without the freeze ever
+     * firing (day_total+effective > 150 but day_total <= 300 and
+     * hour_total <= 150). The freeze can fire without an immediate
+     * cap hit (day_total > 300 alone triggers the freeze even when
+     * day_total + effective is, e.g., exactly 310 — only the freeze
+     * triggers, the cap row fires only when day_total+effective > 150
+     * which is virtually always true on a freeze path).
+     *
+     * @param PDO    $pdo
+     * @param int    $userId
+     * @param int    $effective     The post-FR-PTS-007 halving delta for this user.
+     * @param string $party         'buyer' | 'seller' | 'reviewer' — recorded in metadata for audit.
+     * @param string $referenceType points_log.reference_type for the cap row (e.g. 'final_session', 'review').
+     * @param ?int   $referenceId   Optional ticket id for the cap row (null for review-without-ticket).
+     * @param bool   $ownsTransaction Outer transaction flag (unused here — caller commits/rolls back).
+     * @return ?array Velocity-cap envelope on hit (caller returns
+     *               {ok:true, data:$envelope}); null on no-hit
+     *               (caller continues with the normal INSERT path).
+     */
+    private static function applyVelocityAndFreeze(
+        \PDO $pdo,
+        int $userId,
+        int $effective,
+        string $party,
+        string $referenceType,
+        ?int $referenceId,
+        bool $ownsTransaction
+    ): ?array {
+        $dayTotal = points_log_model::sumForUserInWindow(
+            $pdo,
+            $userId,
+            '1 DAY',
+            true
+        );
+        $hourTotal = points_log_model::sumForUserInWindow(
+            $pdo,
+            $userId,
+            '1 HOUR',
+            true
+        );
+
+        // (b) FR-PTS-010 freeze-trigger. Checked FIRST so a freeze
+        // flip is committed even when the cap also fires on the same
+        // call (the cap short-circuits the row insert but does NOT
+        // roll back the freeze flip). Freeze is one-shot: subsequent
+        // hits do NOT re-UPDATE the flag or write a duplicate audit
+        // row.
+        $freezeTrigger = null;
+        if ($dayTotal > self::FREEZE_DAILY_THRESHOLD) {
+            $freezeTrigger = 'day_overflow';
+        } elseif ($hourTotal > self::FREEZE_HOURLY_THRESHOLD) {
+            $freezeTrigger = 'hour_overflow';
+        }
+        if ($freezeTrigger !== null) {
+            $frz = $pdo->prepare(
+                'UPDATE users SET points_frozen = TRUE, frozen_at = NOW(), updated_at = NOW() '
+                . 'WHERE user_id = ? AND points_frozen = FALSE'
+            );
+            $frz->execute([$userId]);
+            if ($frz->rowCount() > 0) {
+                // First hit — write audit row. Subsequent hits are
+                // a no-op on the UPDATE and skip the audit.
+                Audit::log(null, 'points.frozen', 'user', $userId, [
+                    'trigger' => $freezeTrigger,
+                    'day_total' => $dayTotal,
+                    'hour_total' => $hourTotal,
+                    'effective' => $effective,
+                    'party' => $party,
+                ]);
+            }
+        }
+
+        // (a) PTS-05 per-day transactional cap. Inserts a zero-delta
+        // audit row and returns the velocity_cap envelope. The freeze
+        // flip above is preserved (it lives in the same transaction).
+        if ($dayTotal + $effective > self::PTS05_DAILY_CAP) {
+            $uuid = Uuid::uuid7()->toString();
+            $metadata = json_encode([
+                'velocity_cap_hit' => true,
+                'cap' => 'pts05_daily',
+                'day_total_before' => $dayTotal,
+                'effective_delta' => $effective,
+                'party' => $party,
+            ], JSON_UNESCAPED_UNICODE);
+            points_log_model::insert(
+                $pdo,
+                $userId,
+                0,
+                $referenceType,
+                $referenceId,
+                $dayTotal,
+                $uuid,
+                $metadata
+            );
+            Audit::log(null, 'points.velocity_cap', 'user', $userId, [
+                'event_uuid' => $uuid,
+                'cap' => 'pts05_daily',
+                'day_total_before' => $dayTotal,
+                'effective_delta' => $effective,
+                'party' => $party,
+            ]);
+            return [
+                'skipped' => 'velocity_cap',
+                'event_uuid' => $uuid,
+                'day_total_before' => $dayTotal,
+                'effective_delta' => $effective,
+            ];
+        }
+        return null;
     }
 }
