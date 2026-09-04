@@ -22,6 +22,18 @@ use PHPUnit\Framework\TestCase;
 
 class ImageProxyTest extends TestCase
 {
+    /**
+     * Monotonic counter so seedCategory() / seedUser() generate unique
+     * sort_order / student_id values across every test invocation in the
+     * suite. Categories has UNIQUE KEY uniq_categories_sort and
+     * UNIQUE KEY uniq_categories_name; users has UNIQUE KEY on email,
+     * student_id, nickname. random_int collisions against those indexes
+     * were the source of the ~25% flake rate under --random-order-seed
+     * sweep. Static counters reset per PHPUnit run (PHP process restarts).
+     */
+    private static int $catSeq = 1000;
+    private static int $userSeq = 10000;
+
     public static function setUpBeforeClass(): void
     {
         if (!defined('APP_ROOT')) {
@@ -35,6 +47,24 @@ class ImageProxyTest extends TestCase
             \App\Support\Db::pdo();
         } catch (\Throwable $e) {
             // Tests will skip when DB is unavailable.
+            return;
+        }
+        // Seed counters from the existing max so monotonic sequences stay
+        // unique even when the test DB already has leftover categories /
+        // users from a prior phpunit invocation. (bin/test drops+remigrates
+        // so this branch only matters when running phpunit directly.)
+        try {
+            $pdo = \App\Support\Db::pdo();
+            $maxSort = (int) $pdo->query('SELECT COALESCE(MAX(sort_order), 0) FROM categories')->fetchColumn();
+            $maxUid = (int) $pdo->query('SELECT COALESCE(MAX(user_id), 0) FROM users')->fetchColumn();
+            if ($maxSort >= self::$catSeq) {
+                self::$catSeq = $maxSort + 1;
+            }
+            if ($maxUid >= self::$userSeq) {
+                self::$userSeq = $maxUid + 1;
+            }
+        } catch (\Throwable $e) {
+            // Tables may not exist yet — counters stay at their defaults.
         }
     }
 
@@ -184,7 +214,7 @@ class ImageProxyTest extends TestCase
     {
         $pdo = \App\Support\Db::pdo();
         $now = date('Y-m-d H:i:s');
-        $uid = random_int(10000, 99999);
+        $uid = ++self::$userSeq;
         $defaults = [
             'email' => 'u' . $uid . '@students.nsbm.ac.lk',
             'student_id' => 'NSBM/' . $uid,
@@ -216,9 +246,10 @@ class ImageProxyTest extends TestCase
     private function seedCategory(): int
     {
         $pdo = \App\Support\Db::pdo();
-        $name = 'T' . random_int(1000, 9999);
+        $sort = ++self::$catSeq;
+        $name = 'T' . $sort;
         $pdo->prepare("INSERT INTO categories (name, description, sort_order, is_active, created_at) VALUES (?, 'desc', ?, 1, NOW())")
-            ->execute([$name, random_int(100, 999)]);
+            ->execute([$name, $sort]);
         return (int) $pdo->lastInsertId();
     }
 }

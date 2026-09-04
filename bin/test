@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# TicketTrade — Test Runner
+#
+# Wraps the PHPUnit invocation with the test-DB bootstrap that always
+# trips newcomers: (1) make sure tickettrade_test exists, (2) make
+# sure the schema matches the current migrations (rebuild only when
+# the migration fingerprint has changed), then (3) hand off to phpunit
+# with whatever args you pass.
+#
+# Usage:
+#   bin/test                              # full suite
+#   bin/test --testsuite=phase-3          # one suite
+#   bin/test --filter test_foo            # one test
+#   bin/test --testsuite=phase-2 --testsuite=phase-3-unit   # pass-through
+#
+# Honours DB_DSN, DB_USER, DB_PASS env vars exactly like dev-setup.sh
+# and phpunit.xml's <env name="APP_ENV" value="test"/>.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# 1. Bootstrap dev env (idempotent: creates DBs, fixes configs).
+bin/dev-setup.sh >/dev/null
+
+# 2. Schema fingerprint: hash of the sorted migration filenames. The
+# drop+recreate path is only entered when the migrations directory has
+# changed (file added/removed/renamed). To force a rebuild — e.g. after
+# hand-editing a migration in place — delete data/.test-schema-fingerprint.
+DB_USER="${DB_USER:-user}"
+SOCKET="/tmp/mysql.sock"
+if [ -e "$SOCKET" ]; then
+  SOCK_ARG="--socket=$SOCKET"
+else
+  SOCK_ARG=""
+fi
+STAMP="data/.test-schema-fingerprint"
+CURRENT_FP=$(ls migrations/*.sql 2>/dev/null | sort | md5sum | awk '{print $1}')
+STORED_FP=""
+if [ -f "$STAMP" ]; then
+  STORED_FP=$(cat "$STAMP")
+fi
+
+if [ "$CURRENT_FP" = "$STORED_FP" ]; then
+  echo "[bin/test] Schema fingerprint unchanged ($CURRENT_FP). Skipping drop+remigrate."
+else
+  echo "[bin/test] Schema fingerprint changed (old=${STORED_FP:-none}, new=$CURRENT_FP). Rebuilding test DB..."
+  # Recreate the test DB from scratch. Unit tests assume a clean
+  # schema, and accumulated test data across runs pollutes the seed
+  # (UNIQUE constraints on categories.name, etc.). Drop + recreate
+  # guarantees a deterministic starting point.
+  mysql -u"$DB_USER" $SOCK_ARG -e "DROP DATABASE IF EXISTS tickettrade_test; CREATE DATABASE tickettrade_test DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" >/dev/null
+
+  # Wipe .applied and apply all migrations to the fresh DB.
+  : > migrations/.applied
+  APP_ENV=test php migrate.php >/dev/null
+
+  mkdir -p data
+  printf '%s' "$CURRENT_FP" > "$STAMP"
+fi
+
+# 3. Run phpunit. APP_ENV=test is set by phpunit.xml already, but pass
+# it explicitly so this script also works when phpunit.xml is bypassed.
+export APP_ENV=test
+exec vendor/bin/phpunit "$@"

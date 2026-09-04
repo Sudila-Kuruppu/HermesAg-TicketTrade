@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Test infra state (cached by bin/test)
+/data/.test-schema-fingerprint
