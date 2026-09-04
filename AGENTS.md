@@ -168,6 +168,11 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 
 ## IDX / opencode Runtime Quirks (learned in Phase 5)
 
+> **Workspace-level runtime notes** (opencode subagent protocol, monorepo git root, MariaDB
+> socket, Composer isolation, GitHub auth) live in `004/AGENTS.md`. This section adds the
+> **tickettrade-specific** runtime bits on top: the test DB fingerprint flow, the
+> `bin/dev-setup.sh` bootstrap, and the per-phase GitHub subtree split procedure.
+
 **Git root is the monorepo, not tickettrade.** `git rev-parse --show-toplevel` returns `/home/user/hermesag` (the IDX workspace root), not `004/tickettrade`. tickettrade is a subdirectory. Implications:
 - Worktree isolation targets the parent repo and pulls in unrelated dirty state (Archon, cole-medin-knowledge-base, .idx/, .planning artifacts). Avoid worktrees in this layout — set `workflow.use_worktrees=false` in `.planning/config.json` before dispatching executors.
 - `git add -A` from the parent root is destructive. Executors must stage only paths under `004/tickettrade/` that belong to their plan's `files_modified` list. Use explicit paths.
