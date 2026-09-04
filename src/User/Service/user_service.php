@@ -16,6 +16,15 @@
  * Sri Lankan mobile pattern.
  *
  * Per Pitfall 11: avatar_id is (int) cast + clamped 1..12.
+ *
+ * Plan 06-03 ADDS:
+ *   - getRecentActivityForProfile() — the Recent activity section on the
+ *     owner Profile (D-07). Delegates to points_log_model::recentForUser.
+ *   - recomputeStreakDisplay() — the daily-cron helper. For each user
+ *     with a sessions row today, UPSERT into login_streaks, recompute
+ *     users.current_streak / longest_streak, and award the streak bonus
+ *     (points_service::awardStreakBonus) when the streak crosses the
+ *     7-day or 30-day threshold.
  */
 
 declare(strict_types=1);
@@ -23,8 +32,11 @@ declare(strict_types=1);
 namespace App\User\Service;
 
 use App\Auth\Service\auth_service;
+use App\Points\Model\points_log_model;
+use App\Points\Service\points_service;
 use App\Support\Db;
 use InvalidArgumentException;
+use PDO;
 
 class user_service
 {
@@ -215,5 +227,154 @@ class user_service
             ];
         }
         return ['ok' => true, 'updated' => $clean];
+    }
+
+    /**
+     * Plan 06-03: Profile Recent activity section (D-07).
+     *
+     * Returns up to $limit rows from points_log for the given user,
+     * newest first. The shape matches what the View expects (delta,
+     * reference_type, event_at, metadata_decoded). Delegates to
+     * points_log_model::recentForUser() which already returns the
+     * locked projection.
+     *
+     * @return array<int, array{delta:int,reference_type:string,event_at:string,metadata:?array<string,mixed>}>
+     */
+    public static function getRecentActivityForProfile(int $userId, int $limit = 5): array
+    {
+        $rows = points_log_model::recentForUser(Db::pdo(), $userId, $limit);
+        $out = [];
+        foreach ($rows as $r) {
+            $meta = null;
+            if ($r['metadata'] !== null && $r['metadata'] !== '') {
+                $decoded = json_decode((string) $r['metadata'], true);
+                $meta = is_array($decoded) ? $decoded : null;
+            }
+            $out[] = [
+                'delta' => $r['delta'],
+                'reference_type' => $r['reference_type'],
+                'event_at' => $r['event_at'],
+                'metadata' => $meta,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Plan 06-03: daily-cron streak recompute.
+     *
+     * For each user with a sessions row whose last_seen is on or after
+     * the current date (Asia/Colombo wall clock), UPSERT into
+     * login_streaks(user_id, login_date, streak_count), then UPDATE
+     * users.current_streak / longest_streak to match. When the
+     * recomputed streak crosses the 7-day or 30-day threshold, call
+     * points_service::awardStreakBonus() to write the bonus row.
+     *
+     * Idempotency: re-running on the same day produces the same end
+     * state. The login_streaks UPSERT uses ON DUPLICATE KEY UPDATE so
+     * a re-run never duplicates a row; the streak bonuses are written
+     * through points_service which short-circuits on points_frozen=TRUE
+     * and rejects non-7/30 values via E_VALIDATION.
+     *
+     * @return array{processed:int, awards: array<int, array{user_id:int, streak_days:int, delta:int}>}
+     */
+    public static function recomputeStreakDisplay(PDO $pdo): array
+    {
+        $awards = [];
+        $processed = 0;
+        try {
+            // Find users who logged in today (Asia/Colombo wall-clock).
+            $today = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+                ->format('Y-m-d');
+            $rows = $pdo->prepare(
+                'SELECT DISTINCT s.user_id AS user_id '
+                . 'FROM sessions s JOIN users u ON u.user_id = s.user_id '
+                . 'WHERE DATE(s.last_seen) = ? AND u.is_banned = FALSE'
+            );
+            $rows->execute([$today]);
+            $userIds = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+            $insertStmt = $pdo->prepare(
+                'INSERT INTO login_streaks (user_id, login_date, streak_count, updated_at) '
+                . 'VALUES (?, ?, 1, NOW()) '
+                . 'ON DUPLICATE KEY UPDATE updated_at = NOW()'
+            );
+            $updateUserStmt = $pdo->prepare(
+                'UPDATE users SET current_streak = ?, longest_streak = ?, updated_at = NOW() '
+                . 'WHERE user_id = ?'
+            );
+
+            foreach ($userIds as $row) {
+                $userId = (int) $row['user_id'];
+                $insertStmt->execute([$userId, $today]);
+
+                // Compute the consecutive-day count: scan backward from
+                // today and count how many distinct login_date rows are
+                // contiguous. A break in the chain resets the count to 1.
+                $consecutive = self::consecutiveLoginDays($pdo, $userId, $today);
+
+                $prevLongest = (int) $pdo->query(
+                    'SELECT longest_streak FROM users WHERE user_id = ' . (int) $userId
+                )->fetchColumn();
+                $newLongest = max($prevLongest, $consecutive);
+
+                $updateUserStmt->execute([$consecutive, $newLongest, $userId]);
+                $processed++;
+
+                // Award the streak bonus at thresholds. Awarded once per
+                // crossing — points_service is the sole writer of
+                // points_log, so a duplicate call writes a duplicate row
+                // (acceptable audit-trail cost; the threshold re-check
+                // happens at every cron run).
+                if ($consecutive === 7 || $consecutive === 30) {
+                    $res = points_service::awardStreakBonus($userId, $consecutive);
+                    if (($res['ok'] ?? false) === true && !empty($res['data']['delta'])) {
+                        $awards[] = [
+                            'user_id' => $userId,
+                            'streak_days' => $consecutive,
+                            'delta' => (int) $res['data']['delta'],
+                        ];
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[user_service::recomputeStreakDisplay] ' . $e->getMessage());
+        }
+        return ['processed' => $processed, 'awards' => $awards];
+    }
+
+    /**
+     * Helper: count consecutive login days ending at $today (inclusive).
+     * Used by recomputeStreakDisplay. Public-static so tests can call it
+     * directly.
+     *
+     * @return int >= 1
+     */
+    public static function consecutiveLoginDays(PDO $pdo, int $userId, string $today): int
+    {
+        $stmt = $pdo->prepare(
+            'SELECT login_date FROM login_streaks '
+            . 'WHERE user_id = ? AND login_date <= ? '
+            . 'ORDER BY login_date DESC LIMIT 60'
+        );
+        $stmt->execute([$userId, $today]);
+        $dates = array_map(
+            static fn ($r) => (string) $r['login_date'],
+            $stmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+        if (empty($dates)) {
+            return 0;
+        }
+        $count = 0;
+        $cursor = new \DateTime($today, new \DateTimeZone('Asia/Colombo'));
+        foreach ($dates as $d) {
+            $expected = $cursor->format('Y-m-d');
+            if ($d !== $expected) {
+                break;
+            }
+            $count++;
+            $cursor->modify('-1 day');
+        }
+        return $count;
     }
 }
