@@ -17,6 +17,13 @@
  * is the +50 stub this plan lands; the stub lives in
  * src/Points/Service/points_service.php and writes the points_log row +
  * bumps users.points/tier.
+ *
+ * Phase 6 Plan 06-02 ADDS:
+ *   - recordLogin(int $userId): void — canonical post-authenticate
+ *     hook (D-03) that refreshes users.last_active_at via
+ *     user_model::updateLastActive(). Called from login() /
+ *     consumePasswordReset() after startSession() succeeds. Swallows
+ *     exceptions — a failed refresh must NOT abort the login.
  */
 
 declare(strict_types=1);
@@ -177,8 +184,10 @@ class auth_service
         $studentId = trim($studentId);
         $fullName = trim($fullName);
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)
-            || !str_ends_with($email, '@students.nsbm.ac.lk')) {
+        if (
+            !filter_var($email, FILTER_VALIDATE_EMAIL)
+            || !str_ends_with($email, '@students.nsbm.ac.lk')
+        ) {
             return [
                 'ok' => false,
                 'error' => [
@@ -230,8 +239,10 @@ class auth_service
         // all collapse to E_AUTH_ALLOWLIST with the same copy.
         $allowEmail = student_id_allowlist_model::findByEmail($pdo, $email);
         $allowStudent = student_id_allowlist_model::findByStudentId($pdo, $studentId);
-        if ($allowEmail === null || $allowStudent === null
-            || $allowEmail['student_id'] !== $studentId) {
+        if (
+            $allowEmail === null || $allowStudent === null
+            || $allowEmail['student_id'] !== $studentId
+        ) {
             return [
                 'ok' => false,
                 'error' => [
@@ -415,6 +426,8 @@ class auth_service
             ];
         }
         self::startSession((int) $user['user_id']);
+        // D-03: refresh last_active_at on successful login.
+        self::recordLogin((int) $user['user_id']);
         return [
             'ok' => true,
             'user_id' => (int) $user['user_id'],
@@ -451,6 +464,29 @@ class auth_service
         // Force Auth::boot() to re-read on the next request (we just
         // mutated the session cookie; Support\Auth::boot will read it
         // and look up the sessions row normally on the next request).
+    }
+
+    /**
+     * Post-authenticate hook: refresh users.last_active_at NOW().
+     *
+     * Per D-03 (06-CONTEXT.md), the gamification path (points_log
+     * INSERT) refreshes last_active_at via the migration 019 trigger.
+     * The login path needs its own writer so a user who logs in but
+     * earns no points is still considered "active" by the On-Break
+     * gate. Called from login() / consumePasswordReset() AFTER
+     * startSession() succeeds (so a failed session insert doesn't
+     * refresh last_active_at).
+     *
+     * Swallows all exceptions — a failed refresh must NOT abort the
+     * login. Mirrors the idempotent shape of endSession() / updateLastSeen().
+     */
+    public static function recordLogin(int $userId): void
+    {
+        try {
+            user_model::updateLastActive(Db::pdo(), $userId);
+        } catch (\Throwable $e) {
+            // idempotent — never abort the login.
+        }
     }
 
     /**
@@ -589,6 +625,9 @@ class auth_service
             ];
         }
         self::startSession($userId);
+        // D-03: refresh last_active_at on auto-login after a successful
+        // password reset. Matches the login() path's call.
+        self::recordLogin($userId);
         return [
             'ok' => true,
             'user_id' => $userId,
