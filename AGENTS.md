@@ -177,7 +177,9 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 - `config/db.php` for the dev DSN.
 - If PHPUnit integration tests fail with `SQLSTATE[HY000] [2002]` or `Access denied`, the issue is usually DSN/credentials, not code. Read the test bootstrap (`tests/bootstrap.php` or `phpunit.xml` `<php><env>`) before debugging source.
 
-**Test DB location:** `config/db.test.php` is the source of truth. `vendor/bin/phpunit` runs from the tickettrade project root (`/home/user/hermesag/004/tickettrade`).
+**Test DB + run flow:** `bin/dev-setup.sh` is the one-shot env bootstrap (creates dev + test DBs, writes `config/db.php` and `config/db.test.php` from a socket probe, runs `composer install`, applies migrations if the DB is empty). Re-run it any time. `bin/test <args>` is the entry point for phpunit — it calls `bin/dev-setup.sh` first, then rebuilds the test DB **only when the schema fingerprint has changed** (md5 of sorted `*.sql` filenames, cached at `data/.test-schema-fingerprint`). Subsequent runs skip the drop+remigrate and go straight to phpunit. To force a clean rebuild: `rm data/.test-schema-fingerprint`. Direct `vendor/bin/phpunit` invocations still work from the tickettrade project root — they don't drop the DB, so accumulated state from prior runs can cause UNIQUE-constraint flakes on tests that use random values (see `tests/Unit/Phase03/Support/ImageProxyTest::seedCategory()` which uses a monotonic counter seeded from `MAX(sort_order)` for that reason).
+
+**MariaDB socket:** the local MariaDB listens on `/tmp/mysql.sock`. Both `config/db.php` and `config/db.test.php` default to that socket; `bin/dev-setup.sh` writes them on first run. Override at invocation time with `DB_DSN` (e.g. `DB_DSN='mysql:host=127.0.0.1;port=3306;dbname=tickettrade_test;charset=utf8mb4'`).
 
 **Composer is local to tickettrade.** Run `composer install` from `/home/user/hermesag/004/tickettrade`, not the parent. `vendor/bin/phpunit` and `vendor/bin/phpcs` only exist there.
 
