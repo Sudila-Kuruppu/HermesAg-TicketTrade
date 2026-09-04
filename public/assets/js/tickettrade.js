@@ -668,6 +668,26 @@
 
 
   // ---------------------------------------------------------------------------
+  // tierProgress — Phase 6 Plan 06-01. Wires Bootstrap 5 stock tooltip on
+  // elements with data-component="tier-progress" (the only Bootstrap
+  // dependency the partial ships). The rank-badge partial already uses
+  // data-bs-toggle="tooltip" so we only need to ensure new tier-progress
+  // elements get initialized at boot. Guarded so a missing Bootstrap
+  // global doesn't blow up the page.
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('tierProgress', function (root) {
+    root = root || document;
+    if (typeof window.bootstrap === 'undefined' || !window.bootstrap.Tooltip) {
+      return;
+    }
+    var nodes = root.querySelectorAll('[data-component="tier-progress"][data-bs-toggle="tooltip"]');
+    nodes.forEach(function (el) {
+      // eslint-disable-next-line no-new
+      new window.bootstrap.Tooltip(el);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // DOMContentLoaded: init all components
   // ---------------------------------------------------------------------------
   if (document.readyState === 'loading') {

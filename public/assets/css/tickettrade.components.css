@@ -466,7 +466,69 @@
 }
 .reduce-motion .legend-glow::after,
 @media (prefers-reduced-motion: reduce) {
-  .legend-glow::after { animation: none; }
+  .legend-glow::after { animation: none; box-shadow: 0 0 12px rgba(198, 40, 40, 0.35); }
+}
+
+/* ----- Tier progress bar (Phase 6 Plan 06-01) -----
+   8px rounded-full bar. Track = surface-container; fill uses the
+   current tier's --color-rank-{tier} token (already defined in
+   tickettrade.tokens.css). Honors prefers-reduced-motion: reduce via
+   the existing .reduce-motion media query (no extra work needed — the
+   fill width transition is disabled via the no-animation rule below. */
+.tier-progress {
+  height: 8px;
+  border-radius: var(--shape-full);
+  background: var(--color-surface-container);
+  overflow: hidden;
+}
+.tier-progress__fill {
+  height: 100%;
+  border-radius: var(--shape-full);
+  transition: width var(--motion-hover, 200ms) ease-out;
+}
+.tier-progress__fill--E { background: var(--color-rank-e); }
+.tier-progress__fill--D { background: var(--color-rank-d); }
+.tier-progress__fill--C { background: var(--color-rank-c); }
+.tier-progress__fill--B { background: var(--color-rank-b); }
+.tier-progress__fill--A { background: var(--color-rank-a); }
+.tier-progress__fill--S { background: var(--color-rank-s); }
+.reduce-motion .tier-progress__fill { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tier-progress__fill { transition: none; }
+}
+
+/* ----- On-Break pill (Phase 6 Plan 06-01) -----
+   Wrapper class applies a grayscale+opacity filter to the parent rank
+   badge. The pill itself is a 12px medium-weight surface-container-
+   low chip. Per EXPERIENCE.md L153. */
+.on-break {
+  filter: grayscale(0.8);
+  opacity: 0.6;
+}
+.on-break-pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  padding: 2px 8px;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-full);
+  vertical-align: middle;
+}
+
+/* ----- Velocity flag pill (Phase 6 Plan 06-01) -----
+   D-02 gentler variant of UX-DR-16. Links nowhere in Phase 6 — admin
+   Phase 7/8 wires the resolution flow. Uses --color-velocity-flag
+   / --color-velocity-flag-bg tokens from tickettrade.tokens.css. */
+.velocity-flag-pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  padding: 4px 10px;
+  background: var(--color-velocity-flag-bg);
+  color: var(--color-velocity-flag);
+  border-radius: var(--shape-full);
+  border: 1px solid var(--color-velocity-flag);
 }
 
 /* ----- Display typography utility classes (Phase 3 D-25) -----

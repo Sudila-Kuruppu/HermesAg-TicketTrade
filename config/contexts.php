@@ -6,7 +6,7 @@
  * Controller code) that the Support\Router validates route handlers against.
  *
  * Per AD-2: contexts are Auth, Listing, Ticket, Points, User, Category,
- * Report, Admin, Cron.
+ * Report, Admin, Cron, Review, Leaderboard.
  */
 
 declare(strict_types=1);
@@ -22,4 +22,5 @@ return [
     'Admin',
     'Cron',
     'Review',
+    'Leaderboard',
 ];
