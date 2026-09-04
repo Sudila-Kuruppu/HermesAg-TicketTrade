@@ -4,8 +4,19 @@
  * TicketTrade — Points\Model\points_log_model
  *
  * Phase 2 stub. The sole writer of points_log (AD-10) is
- * Points/Service/points_service.php; this Model exposes the minimal
- * insert() helper the Service needs.
+ * Points/Service/points_service.php; this Model exposes the
+ * read helpers the Service needs plus the insert() helper.
+ *
+ * Phase 6 ADDS:
+ *   - sumForUserInWindow()  — velocity cap reads
+ *   - countPairInDay()      — same-pair cap reads
+ *   - recentForUser()       — Profile recent-activity section
+ *
+ * The cap-hit metadata flag on insert() rows is the channel the
+ * Service uses to mark "this row counted as 0 due to a cap" — see
+ * D-08 in 06-CONTEXT.md. The sum/count helpers exclude those rows
+ * by default so the velocity calculation reflects only counted
+ * deltas.
  */
 
 declare(strict_types=1);
@@ -25,7 +36,11 @@ class points_log_model
      * @param int|null $referenceId e.g. $userId for verify
      * @param int    $balanceAfter  e.g. 50
      * @param string $eventUuid     UUID v7 hex string
-     * @param string|null $metadataJson Optional JSON-encoded metadata
+     * @param string|null $metadataJson Optional JSON-encoded metadata.
+     *                                  Cap-hit rows set `pair_cap_hit=true`
+     *                                  or `velocity_cap_hit=true` so the
+     *                                  velocity/pair-cap reads can exclude
+     *                                  them.
      */
     public static function insert(
         PDO $pdo,
@@ -53,5 +68,109 @@ class points_log_model
             $now,
         ]);
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Sum of deltas for a user in the given INTERVAL window, excluding
+     * cap-hit rows (the audit rows from velocity_cap_hit / pair_cap_hit
+     * that were inserted with delta=0 per D-08).
+     *
+     * Used by the velocity cap check in points_service.
+     *
+     * @param PDO    $pdo
+     * @param int    $userId
+     * @param string $interval   MySQL INTERVAL literal: '1 DAY', '1 HOUR', etc.
+     * @param bool   $excludePairCap When true, also excludes rows with
+     *                               metadata.pair_cap_hit = TRUE.
+     * @return int   Total counted delta in the window (>= 0).
+     */
+    public static function sumForUserInWindow(
+        PDO $pdo,
+        int $userId,
+        string $interval,
+        bool $excludePairCap = true
+    ): int {
+        // Whitelist the interval so it can't be injected; the Service
+        // is the only caller and always passes a fixed literal.
+        $allowed = ['1 DAY', '1 HOUR'];
+        if (!in_array($interval, $allowed, true)) {
+            throw new \InvalidArgumentException('Invalid interval');
+        }
+        // The COALESCE handles the no-rows case explicitly; SUM() over
+        // an empty set returns NULL which PHP would coerce to 0 with
+        // `?? 0` anyway, but the explicit COALESCE matches the DDL.
+        $pairClause = $excludePairCap
+            ? 'AND (JSON_EXTRACT(metadata, "$.pair_cap_hit") IS NULL '
+                . 'OR JSON_EXTRACT(metadata, "$.pair_cap_hit") = false)'
+            : '';
+        $sql = "SELECT COALESCE(SUM(delta), 0) FROM points_log "
+            . "WHERE user_id = ? AND event_at >= NOW() - INTERVAL {$interval} "
+            . "AND (JSON_EXTRACT(metadata, \"$.velocity_cap_hit\") IS NULL "
+            . "OR JSON_EXTRACT(metadata, \"$.velocity_cap_hit\") = false) "
+            . $pairClause;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Count of distinct reference_id rows for the given pair (userA, userB)
+     * against the given ticket today, excluding cap-hit rows and excluding
+     * non-transaction reference_types. The pair-cap check in
+     * points_service uses the value to decide whether to insert a counted
+     * row or a cap-hit audit row.
+     *
+     * @param PDO $pdo
+     * @param int $userA
+     * @param int $userB
+     * @param int $ticketId
+     * @return int Count of distinct counted rows for this pair+ticket today.
+     */
+    public static function countPairInDay(
+        PDO $pdo,
+        int $userA,
+        int $userB,
+        int $ticketId
+    ): int {
+        $sql = "SELECT COUNT(DISTINCT reference_id) FROM points_log "
+            . "WHERE user_id IN (?, ?) AND reference_id = ? "
+            . "AND DATE(event_at) = CURDATE() "
+            . "AND (JSON_EXTRACT(metadata, \"$.pair_cap_hit\") IS NULL "
+            . "OR JSON_EXTRACT(metadata, \"$.pair_cap_hit\") = false) "
+            . "AND reference_type IN ('final_session', 'transaction')";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userA, $userB, $ticketId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Recent rows for a user, newest first. Used by the Profile
+     * recent-activity section (D-07 in 06-CONTEXT.md).
+     *
+     * @param PDO $pdo
+     * @param int $userId
+     * @param int $limit  Default 5; max 100.
+     * @return array<int, array{delta:int,reference_type:string,event_at:string,metadata:?string}>
+     */
+    public static function recentForUser(PDO $pdo, int $userId, int $limit = 5): array
+    {
+        $limit = max(1, min(100, $limit));
+        $stmt = $pdo->prepare(
+            'SELECT delta, reference_type, event_at, metadata '
+            . 'FROM points_log WHERE user_id = ? '
+            . 'ORDER BY event_at DESC, id DESC LIMIT ' . $limit
+        );
+        $stmt->execute([$userId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'delta' => (int) $r['delta'],
+                'reference_type' => (string) $r['reference_type'],
+                'event_at' => (string) $r['event_at'],
+                'metadata' => $r['metadata'] !== null ? (string) $r['metadata'] : null,
+            ];
+        }
+        return $out;
     }
 }

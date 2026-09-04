@@ -11,6 +11,23 @@
  * Phase 2 Plan 02-02 ships awardVerificationBonus().
  * Phase 4 Plan 04-01 ADDS awardTransaction() per D-06 — the Phase 6
  * contract. Phase 6 swaps the implementation without changing callers.
+ *
+ * Phase 5 Plan 05-01 ADDS awardReviewPoints() per D-05.
+ *
+ * Phase 6 Plan 06-01 ADDS:
+ *   - awardListingApproval()        — +5 for approved listing
+ *   - awardReportValidated()        — +20 for valid report
+ *   - awardStreakBonus()            — +15 (7-day) / +50 (30-day)
+ *   - voidPoints()                  — admin void (Plan 08 caller; Plan 6 ships the method)
+ *   - clearPointsFreeze()           — admin unfreeze (Plan 08 caller; Plan 6 ships the method)
+ *
+ * Every writer short-circuits cleanly when users.points_frozen=TRUE
+ * (returns {ok:true, data:{skipped:'points_frozen'}} — no row, no audit
+ * trail beyond the existing flag).
+ *
+ * Phase 6 Plan 06-02 layers the velocity and pair-cap enforcement onto
+ * awardTransaction() + awardReviewPoints(); this plan ships the writers
+ * + helpers but NOT the cap enforcement.
  */
 
 declare(strict_types=1);
@@ -19,6 +36,7 @@ namespace App\Points\Service;
 
 use App\Auth\Service\auth_service;
 use App\Points\Model\points_log_model;
+use App\Support\Audit;
 use App\Support\Db;
 use Ramsey\Uuid\Uuid;
 
@@ -86,7 +104,7 @@ class points_service
      *     ok=true with data.skipped='points_frozen') — the ticket
      *     creation / redemption succeeds even when points are frozen.
      *
-     * Does NOT honor (TODO Phase 6):
+     * Does NOT honor (TODO Phase 6 Plan 06-02):
      *   - FR-PTS-005 velocity cap
      *   - FR-PTS-006 same-pair 2/day cap
      *
@@ -177,10 +195,10 @@ class points_service
                 ? (int) floor($deltaSeller * 0.5)
                 : $deltaSeller;
 
-            // TODO: Phase 6 — apply FR-PTS-005 velocity cap
+            // TODO: Phase 6 Plan 06-02 — apply FR-PTS-005 velocity cap
             //   (>300 pts/day or >150 pts/hour per FR-ADM-009) here.
 
-            // TODO: Phase 6 — apply FR-PTS-006 same-pair 2/day cap.
+            // TODO: Phase 6 Plan 06-02 — apply FR-PTS-006 same-pair 2/day cap.
             //   Count counted-transaction rows in points_log for the
             //   same (actor_id, counterparty_id, DATE(event_at)) tuple.
             //   If >= 2, set metadata.pair_cap_hit=TRUE and the row is
@@ -394,5 +412,384 @@ class points_service
                 ],
             ];
         }
+    }
+
+    // ====================================================================
+    //  Phase 6 Plan 06-01 — new writers (no halving, frozen-gated)
+    // ====================================================================
+
+    /**
+     * Award +5 for an approved listing (FR-PTS-001 row 2).
+     *
+     * No FR-PTS-007 halving — the multiplier is transaction-only per
+     * D-15 (06-CONTEXT.md). Honors FR-PTS-010 frozen-gate.
+     *
+     * @return array AD-16 envelope.
+     *   Success:  ['ok'=>true, 'data'=>['delta'=>5, 'event_uuid'=>string, 'balance_after'=>int]]
+     *   Skipped:  ['ok'=>true, 'data'=>['skipped'=>'points_frozen']]
+     */
+    public static function awardListingApproval(int $userId, int $listingId): array
+    {
+        return self::simpleAward(
+            $userId,
+            5,
+            'listing_approval',
+            $listingId,
+            ['listing_id' => $listingId, 'cap_hit' => false]
+        );
+    }
+
+    /**
+     * Award +20 for a validated report (FR-PTS-001 row 6).
+     * No halving. Honors FR-PTS-010 frozen-gate.
+     */
+    public static function awardReportValidated(int $userId, int $reportId): array
+    {
+        return self::simpleAward(
+            $userId,
+            20,
+            'report_validated',
+            $reportId,
+            ['report_id' => $reportId, 'cap_hit' => false]
+        );
+    }
+
+    /**
+     * Award the +15 (7-day) or +50 (30-day) streak bonus (FR-PTS-001
+     * rows 7-8). streakDays must be exactly 7 or 30; any other value
+     * is rejected with E_VALIDATION.
+     *
+     * No halving. Honors FR-PTS-010 frozen-gate.
+     *
+     * @return array AD-16 envelope. Success carries the typed
+     *   reference_type 'streak_7day' or 'streak_30day'.
+     */
+    public static function awardStreakBonus(int $userId, int $streakDays): array
+    {
+        if ($streakDays === 7) {
+            return self::simpleAward(
+                $userId,
+                15,
+                'streak_7day',
+                $streakDays,
+                ['streak_days' => 7, 'cap_hit' => false]
+            );
+        }
+        if ($streakDays === 30) {
+            return self::simpleAward(
+                $userId,
+                50,
+                'streak_30day',
+                $streakDays,
+                ['streak_days' => 30, 'cap_hit' => false]
+            );
+        }
+        return [
+            'ok' => false,
+            'error' => [
+                'code' => 'E_VALIDATION',
+                'message' => 'streakDays must be 7 or 30.',
+            ],
+        ];
+    }
+
+    /**
+     * Void points from a user (admin action, Phase 8 caller).
+     *
+     * Reads users.points FOR UPDATE, computes new_balance =
+     * max(0, points - delta), inserts a negative-delta points_log row,
+     * updates users.points + tier, writes an audit row 'points.void'.
+     *
+     * Phase 6 ships the method as part of the engine surface; the
+     * admin UI / endpoint lands in Phase 8.
+     *
+     * @return array AD-16 envelope.
+     *   Success:    ['ok'=>true, 'data'=>['voided'=>int, 'balance_after'=>int, 'event_uuid'=>string]]
+     *   Insufficient: ['ok'=>false, 'error'=>['code'=>'E_VOID_INSUFFICIENT_BALANCE']]
+     */
+    public static function voidPoints(int $userId, int $delta, string $reason): array
+    {
+        $pdo = Db::pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+        try {
+            if ($ownsTransaction) {
+                $pdo->beginTransaction();
+            }
+            if ($delta <= 0) {
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_VALIDATION',
+                        'message' => 'delta must be positive.',
+                    ],
+                ];
+            }
+            $lock = $pdo->prepare(
+                'SELECT user_id, points FROM users WHERE user_id = ? FOR UPDATE'
+            );
+            $lock->execute([$userId]);
+            $row = $lock->fetch();
+            if ($row === false) {
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_POINTS_WRITE',
+                        'message' => 'User not found.',
+                    ],
+                ];
+            }
+            $current = (int) $row['points'];
+            // Edge case: caller asked to void MORE than the user has AND
+            // current is already 0 — return E_VOID_INSUFFICIENT_BALANCE
+            // with no row written (audit stays clean).
+            if ($delta > $current && $current === 0) {
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_VOID_INSUFFICIENT_BALANCE',
+                        'message' => 'User has no points to void.',
+                    ],
+                ];
+            }
+            // Floored void — never goes below 0.
+            $voided = min($delta, $current);
+            $newBalance = $current - $voided;
+            $newTier = auth_service::tierFromPoints($newBalance);
+            $uuid = Uuid::uuid7()->toString();
+            $metadata = json_encode(
+                ['reason' => $reason, 'voided' => true, 'requested_delta' => $delta],
+                JSON_UNESCAPED_UNICODE
+            );
+            points_log_model::insert(
+                $pdo,
+                $userId,
+                -$voided,
+                'void',
+                $userId,
+                $newBalance,
+                $uuid,
+                $metadata
+            );
+            $upd = $pdo->prepare(
+                'UPDATE users SET points = ?, tier = ?, updated_at = NOW() WHERE user_id = ?'
+            );
+            $upd->execute([$newBalance, $newTier, $userId]);
+            // Best-effort audit (Phase 8 wraps the hash chain).
+            Audit::log(null, 'points.void', 'user', $userId, [
+                'voided' => $voided,
+                'balance_after' => $newBalance,
+                'reason' => $reason,
+                'event_uuid' => $uuid,
+            ]);
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+            return [
+                'ok' => true,
+                'data' => [
+                    'voided' => $voided,
+                    'balance_after' => $newBalance,
+                    'event_uuid' => $uuid,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_POINTS_WRITE',
+                    'message' => 'Could not void points.',
+                ],
+            ];
+        }
+    }
+
+    /**
+     * Clear the points_frozen flag (admin action, Phase 8 caller).
+     *
+     * UPDATEs users.points_frozen=FALSE, frozen_at=NULL,
+     * last_unfrozen_at=NOW() and writes an audit row 'points.unfrozen'.
+     *
+     * Phase 6 ships the method as part of the engine surface; the
+     * admin UI / endpoint lands in Phase 8.
+     *
+     * @return array AD-16 envelope.
+     *   Success: ['ok'=>true, 'data'=>['unfrozen_user_id'=>int]]
+     */
+    public static function clearPointsFreeze(int $userId): array
+    {
+        $pdo = Db::pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+        try {
+            if ($ownsTransaction) {
+                $pdo->beginTransaction();
+            }
+            $upd = $pdo->prepare(
+                'UPDATE users SET points_frozen = FALSE, '
+                . 'frozen_at = NULL, last_unfrozen_at = NOW(), updated_at = NOW() '
+                . 'WHERE user_id = ?'
+            );
+            $upd->execute([$userId]);
+            if ($upd->rowCount() === 0) {
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_POINTS_WRITE',
+                        'message' => 'User not found.',
+                    ],
+                ];
+            }
+            Audit::log(null, 'points.unfrozen', 'user', $userId, [
+                'unfrozen_user_id' => $userId,
+            ]);
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+            return [
+                'ok' => true,
+                'data' => ['unfrozen_user_id' => $userId],
+            ];
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_POINTS_WRITE',
+                    'message' => 'Could not clear freeze.',
+                ],
+            ];
+        }
+    }
+
+    /**
+     * Shared writer for awardListingApproval / awardReportValidated /
+     * awardStreakBonus — no halving, frozen-gated, single-row.
+     *
+     * Tier-up toast marker is queued in $GLOBALS['_tt_toast_queue']
+     * (the View layer reads this on the next page load per D-15).
+     */
+    private static function simpleAward(
+        int $userId,
+        int $delta,
+        string $referenceType,
+        int $referenceId,
+        array $metadataFields
+    ): array {
+        $pdo = Db::pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+        try {
+            if ($ownsTransaction) {
+                $pdo->beginTransaction();
+            }
+            $lock = $pdo->prepare(
+                'SELECT user_id, points, points_frozen, tier FROM users WHERE user_id = ? FOR UPDATE'
+            );
+            $lock->execute([$userId]);
+            $row = $lock->fetch();
+            if ($row === false) {
+                if ($ownsTransaction) {
+                    $pdo->rollBack();
+                }
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_POINTS_WRITE',
+                        'message' => 'User not found.',
+                    ],
+                ];
+            }
+            // FR-PTS-010: frozen short-circuit.
+            if (!empty($row['points_frozen'])) {
+                if ($ownsTransaction) {
+                    $pdo->commit();
+                }
+                return [
+                    'ok' => true,
+                    'data' => ['skipped' => 'points_frozen'],
+                ];
+            }
+            $prevTier = (string) $row['tier'];
+            $newPoints = (int) $row['points'] + $delta;
+            $newTier = auth_service::tierFromPoints($newPoints);
+            $uuid = Uuid::uuid7()->toString();
+            $metadata = json_encode($metadataFields, JSON_UNESCAPED_UNICODE);
+            points_log_model::insert(
+                $pdo,
+                $userId,
+                $delta,
+                $referenceType,
+                $referenceId,
+                $newPoints,
+                $uuid,
+                $metadata
+            );
+            $upd = $pdo->prepare(
+                'UPDATE users SET points = ?, tier = ?, updated_at = NOW() WHERE user_id = ?'
+            );
+            $upd->execute([$newPoints, $newTier, $userId]);
+            // Tier-up toast marker (visible transitions only).
+            if ($newTier !== $prevTier && self::isVisibleTierUp($prevTier, $newTier)) {
+                $ladder = require APP_ROOT . '/config/ranks.php';
+                $name = $ladder[$newTier]['name'] ?? $newTier;
+                if (!isset($GLOBALS['_tt_toast_queue']) || !is_array($GLOBALS['_tt_toast_queue'])) {
+                    $GLOBALS['_tt_toast_queue'] = [];
+                }
+                $GLOBALS['_tt_toast_queue'][] = [
+                    'type' => 'success',
+                    'message' => "Tier up! You're now {$name} ({$newTier}).",
+                ];
+            }
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+            return [
+                'ok' => true,
+                'data' => [
+                    'delta' => $delta,
+                    'event_uuid' => $uuid,
+                    'balance_after' => $newPoints,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return [
+                'ok' => false,
+                'error' => [
+                    'code' => 'E_POINTS_WRITE',
+                    'message' => 'Could not award points.',
+                ],
+            ];
+        }
+    }
+
+    /**
+     * Visible-tier-up predicate — E->D, D->C, C->B, B->A, A->S only.
+     * Same-tier re-renders are silent (no toast).
+     */
+    private static function isVisibleTierUp(string $from, string $to): bool
+    {
+        $ladder = ['E' => 0, 'D' => 1, 'C' => 2, 'B' => 3, 'A' => 4, 'S' => 5];
+        if (!isset($ladder[$from]) || !isset($ladder[$to])) {
+            return false;
+        }
+        return $ladder[$to] > $ladder[$from];
     }
 }
