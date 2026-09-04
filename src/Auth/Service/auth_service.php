@@ -483,7 +483,14 @@ class auth_service
     public static function recordLogin(int $userId): void
     {
         try {
-            user_model::updateLastActive(Db::pdo(), $userId);
+            // Cross-context: App\User\Model\user_model owns the
+            // canonical user CRUD (AD-1 — Service is the only
+            // context that imports another context's Model). The
+            // local App\Auth\Model\user_model stub ships findBy* /
+            // insert for the register/verify flow but does NOT
+            // own updateLastActive (the Phase 6 On-Break column
+            // is updated via the User context per AD-1 + D-03).
+            \App\User\Model\user_model::updateLastActive(Db::pdo(), $userId);
         } catch (\Throwable $e) {
             // idempotent — never abort the login.
         }
