@@ -99,7 +99,6 @@ ACTUAL_TABLES=$(mysql -u"$DB_USER" ${SOCKET:+--socket="$SOCKET"} -N -B tickettra
   "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='tickettrade'" 2>/dev/null || echo 0)
 if [ "$ACTUAL_TABLES" -lt "$EXPECTED_TABLES" ]; then
   echo "[dev-setup] Running php migrate.php (DB has $ACTUAL_TABLES tables, $EXPECTED_TABLES expected)..."
-  : > migrations/.applied
   php migrate.php
 else
   echo "[dev-setup] Migrations already applied ($ACTUAL_TABLES/$EXPECTED_TABLES tables). Skipping."
