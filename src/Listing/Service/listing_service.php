@@ -500,6 +500,9 @@ class listing_service
     {
         try {
             $pdo = Db::pdo();
+            // WR-02: prepared with no bound params. All literals are
+            // hard-coded (no user input reaches this query); the
+            // prepared form is intentional code-style uniformity.
             $sql = 'UPDATE listings SET status = \'active\', '
                 . 'approved_at = NOW(), approved_by = NULL, '
                 . 'updated_at = NOW() '
