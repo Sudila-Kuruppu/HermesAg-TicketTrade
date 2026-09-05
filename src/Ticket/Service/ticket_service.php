@@ -172,13 +172,18 @@ class ticket_service
             $u->execute([$inventoryDelta, $inventoryDelta, $listingId]);
 
             // Audit row.
-            Audit::log($buyerId, 'ticket.created', 'ticket', $ticketId, [
+            $auditOk = Audit::log($buyerId, 'ticket.created', 'ticket', $ticketId, [
                 'listing_id' => $listingId,
                 'price_cents' => $priceCents,
                 'total_sessions' => $totalSessions,
                 'inventory_delta' => $inventoryDelta,
                 'ticket_code' => $code,
             ]);
+            if ($auditOk === 0) {
+                // WR-04 fix: surface silent audit failure as an
+                // error_log line so it's observable in production.
+                error_log('[ticket_service::createTicket] audit_log write failed for ticket_id=' . $ticketId);
+            }
 
             $pdo->commit();
             return Error::envelope(true, [
@@ -293,11 +298,15 @@ class ticket_service
             }
 
             // Audit row.
-            Audit::log($sellerId, 'ticket.redeemed', 'ticket', (int) $redeemed['id'], [
+            $auditOk = Audit::log($sellerId, 'ticket.redeemed', 'ticket', (int) $redeemed['id'], [
                 'ticket_code' => $code,
                 'buyer_id' => (int) $redeemed['buyer_id'],
                 'is_final' => $isFinal,
             ]);
+            if ($auditOk === 0) {
+                // WR-04 fix: observe silent audit failure.
+                error_log('[ticket_service::redeemTicket] audit_log write failed for ticket_id=' . (int) $redeemed['id']);
+            }
 
             $pdo->commit();
             return Error::envelope(true, [
@@ -407,11 +416,15 @@ class ticket_service
                 }
             }
 
-            Audit::log($sellerId, 'ticket.session_confirmed', 'ticket', $ticketId, [
+            $auditOk = Audit::log($sellerId, 'ticket.session_confirmed', 'ticket', $ticketId, [
                 'session_number' => $newSession,
                 'is_final' => $isFinal,
                 'total_sessions' => (int) $existing['total_sessions'],
             ]);
+            if ($auditOk === 0) {
+                // WR-04 fix: observe silent audit failure.
+                error_log('[ticket_service::confirmSession] audit_log write failed for ticket_id=' . $ticketId);
+            }
 
             $pdo->commit();
             return Error::envelope(true, [
@@ -499,10 +512,14 @@ class ticket_service
             );
             $ins->execute(['ticket', $ticketId, $actorUserId, $reason, $text, $now]);
 
-            Audit::log($actorUserId, 'ticket.dispute_filed', 'ticket', $ticketId, [
+            $auditOk = Audit::log($actorUserId, 'ticket.dispute_filed', 'ticket', $ticketId, [
                 'reason' => $reason,
                 'text_length' => $textLen,
             ]);
+            if ($auditOk === 0) {
+                // WR-04 fix: observe silent audit failure.
+                error_log('[ticket_service::fileDispute] audit_log write failed for ticket_id=' . $ticketId);
+            }
 
             $pdo->commit();
             return Error::envelope(true, [
