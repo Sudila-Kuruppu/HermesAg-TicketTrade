@@ -10,8 +10,9 @@
  * `App\Admin\Action\CronAction` directly; the shim exists for
  * backward compatibility with Phase 3 callers and tests.
  *
- * On any invocation it emits a one-time `error_log` warning so
- * leftover callers are visible during the Phase 4 demo.
+ * IN-04: the deprecation warning is emitted ONCE per process via a
+ * static guard, instead of on every invocation. The log fills with
+ * noise if any leftover caller hits the deprecated route per request.
  */
 
 declare(strict_types=1);
@@ -22,6 +23,9 @@ use App\Admin\Action\CronAction;
 
 class ListingAutoApproveAction
 {
+    /** IN-04: process-local "did we already warn?" guard. */
+    private static bool $warned = false;
+
     /**
      * POST /admin/cron/ticket-expiry (deprecated entrypoint).
      *
@@ -29,7 +33,10 @@ class ListingAutoApproveAction
      */
     public function handle(): void
     {
-        error_log('[cron] deprecated route hit: App\\Listing\\Action\\ListingAutoApproveAction — use App\\Admin\\Action\\CronAction');
+        if (!self::$warned) {
+            self::$warned = true;
+            error_log('[cron] deprecated route hit: App\\Listing\\Action\\ListingAutoApproveAction — use App\\Admin\\Action\\CronAction');
+        }
         (new CronAction())->handle();
     }
 }
