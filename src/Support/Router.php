@@ -33,14 +33,21 @@ class Router
 
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         $GLOBALS['_tt_surface'] = $surface;
-        error_log("[ROUTER] dispatch surface=$surface method=$method path=$path routes_count=" . count($routes) . " key={$method} {$path}");
+        // Verbose dispatch logging is gated to dev so production logs
+        // don't accumulate per-request noise and don't carry request
+        // path data that may include sensitive URL params (WR-06).
+        if (getenv('APP_ENV') === 'development') {
+            error_log("[ROUTER] dispatch surface=$surface method=$method path=$path routes_count=" . count($routes) . " key={$method} {$path}");
+        }
 
         // Resolve the route: exact match first, then placeholder match.
         $key = $method . ' ' . $path;
         $route = $routes[$key] ?? null;
         $routeParams = [];
         if ($route === null) {
-            error_log("[ROUTER] trying placeholders, count=" . count($routes));
+            if (getenv('APP_ENV') === 'development') {
+                error_log("[ROUTER] trying placeholders, count=" . count($routes));
+            }
             foreach ($routes as $routeKey => $routeEntry) {
                 $hasPlaceholder = strpos($routeKey, '{');
                 if ($hasPlaceholder === false) {
@@ -78,7 +85,9 @@ class Router
             }
         }
 
-        error_log("[ROUTER] final route=" . var_export($route, true));
+        if (getenv('APP_ENV') === 'development') {
+            error_log("[ROUTER] final route=" . var_export($route, true));
+        }
         if ($route === null) {
             http_response_code(404);
             self::renderGenericError('Not Found', 'The page you requested does not exist.');
@@ -94,7 +103,9 @@ class Router
         if (!is_string($class) || !is_string($methodName)) {
             throw new \RuntimeException("Bad route entry for {$key}");
         }
-        error_log("[ROUTER] class=$class method=$methodName admin_guard=" . var_export(!empty($opts['admin']), true));
+        if (getenv('APP_ENV') === 'development') {
+            error_log("[ROUTER] class=$class method=$methodName admin_guard=" . var_export(!empty($opts['admin']), true));
+        }
         if (!class_exists($class)) {
             throw new \RuntimeException("Handler class not found: {$class}");
         }
