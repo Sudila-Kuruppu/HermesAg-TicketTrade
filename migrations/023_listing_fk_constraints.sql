@@ -11,46 +11,41 @@
 --     (so deleting the source listing on a relist clears the
 --     fast-track pointer rather than leaving a dangling FK).
 --
--- Idempotent: each ALTER is wrapped in a procedure that checks
--- information_schema and only adds the constraint if missing, so
--- re-runs of the migration runner are no-ops.
+-- Idempotent: each ALTER is gated on information_schema.TABLE_CONSTRAINTS
+-- and only issued when the named FK is missing. Re-runs of the migration
+-- runner become no-ops. Same information_schema + PREPARE/EXECUTE idiom
+-- as 014_users_redemption_count.sql and 018_points_log_indexes.sql —
+-- plain statements, no DELIMITER blocks (PDO does not understand the
+-- DELIMITER directive and migrate.php splits on ';', D-27 invariant).
 
-DELIMITER $$
-
-DROP PROCEDURE IF EXISTS _tt_add_fk_if_missing $$
-CREATE PROCEDURE _tt_add_fk_if_missing(
-    IN p_table VARCHAR(64),
-    IN p_constraint VARCHAR(64),
-    IN p_ddl TEXT
-)
-BEGIN
-    DECLARE v_exists INT DEFAULT 0;
-    SELECT COUNT(*) INTO v_exists
-        FROM information_schema.TABLE_CONSTRAINTS
-        WHERE CONSTRAINT_SCHEMA = DATABASE()
-          AND TABLE_NAME = p_table
-          AND CONSTRAINT_NAME = p_constraint
-          AND CONSTRAINT_TYPE = 'FOREIGN KEY';
-    IF v_exists = 0 THEN
-        SET @sql := p_ddl;
-        PREPARE stmt FROM @sql;
-        EXECUTE stmt;
-        DEALLOCATE PREPARE stmt;
-    END IF;
-END $$
-
-DELIMITER ;
-
-CALL _tt_add_fk_if_missing(
-    'listing_revisions',
-    'fk_listing_revisions_listing',
-    'ALTER TABLE listing_revisions ADD CONSTRAINT fk_listing_revisions_listing FOREIGN KEY (listing_id) REFERENCES listings (id) ON DELETE CASCADE'
+SET @fk_revisions_exists = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'listing_revisions'
+    AND CONSTRAINT_NAME = 'fk_listing_revisions_listing'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
 );
 
-CALL _tt_add_fk_if_missing(
-    'listings',
-    'fk_listings_source',
-    'ALTER TABLE listings ADD CONSTRAINT fk_listings_source FOREIGN KEY (source_listing_id) REFERENCES listings (id) ON DELETE SET NULL'
+SET @sql = IF(@fk_revisions_exists = 0,
+  'ALTER TABLE listing_revisions ADD CONSTRAINT fk_listing_revisions_listing FOREIGN KEY (listing_id) REFERENCES listings (id) ON DELETE CASCADE',
+  'DO 0');
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @fk_source_exists = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'listings'
+    AND CONSTRAINT_NAME = 'fk_listings_source'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
 );
 
-DROP PROCEDURE _tt_add_fk_if_missing;
+SET @sql = IF(@fk_source_exists = 0,
+  'ALTER TABLE listings ADD CONSTRAINT fk_listings_source FOREIGN KEY (source_listing_id) REFERENCES listings (id) ON DELETE SET NULL',
+  'DO 0');
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
