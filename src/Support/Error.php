@@ -43,15 +43,30 @@ class Error
     }
 
     /**
-     * Generic 500; logs internal message to error_log in non-production.
+     * Generic 500; ALWAYS logs the internal message server-side, but
+     * only echoes it to the client in an explicit APP_ENV=development
+     * context (safe-by-default per CR-004). In production the client
+     * sees a generic page so table names, paths, and class names don't
+     * leak.
      */
     public static function server_error(string $internalMessage = ''): void
     {
         http_response_code(500);
-        if ($internalMessage !== '' && getenv('APP_ENV') !== 'production') {
-            error_log('[phase-2] ' . $internalMessage);
+        // Always log server-side so operators can diagnose even when
+        // APP_ENV is unset (which we now treat as production by default).
+        if ($internalMessage !== '') {
+            error_log('[server_error] ' . $internalMessage);
         }
+        // Safe-by-default: only echo the message in an explicit dev env.
+        $isDev = getenv('APP_ENV') !== false && getenv('APP_ENV') === 'development';
         header('Content-Type: text/html; charset=utf-8');
+        if ($isDev && $internalMessage !== '') {
+            echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+                . '<title>Server Error</title></head><body><main id="main" tabindex="-1">'
+                . '<h1>Server Error</h1><pre>' . htmlspecialchars($internalMessage, ENT_QUOTES, 'UTF-8') . '</pre>'
+                . '</main></body></html>';
+            exit;
+        }
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             . '<title>Server Error</title></head><body><main id="main" tabindex="-1">'
             . '<h1>Server Error</h1><p>The application could not complete your request.</p>'
