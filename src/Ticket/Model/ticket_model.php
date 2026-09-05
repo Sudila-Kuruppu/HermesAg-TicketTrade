@@ -578,15 +578,55 @@ class ticket_model
      * The Service calls this AFTER the ticket's status has been
      * flipped to `expired`. Uses a single guarded UPDATE per ticket.
      * Returns the new `quantity_sold` value.
+     *
+     * CR-04 fix: re-read the listing under FOR UPDATE first so the
+     * function verifies the listing is still in a state that admits
+     * the decrement AND so the quantity_sold decrement is bounded
+     * by `quantity_sold >= ?` — this guards against the 5-second
+     * window in runTicketExpirySweep re-decrementing the same row
+     * across a fast replay (e.g. two cron invocations within 5s of
+     * each other). If quantity_sold is already below $decrement, the
+     * decrement is skipped (no under-count). The status-restore step
+     * also runs under the same row lock.
+     *
+     * Parameter is the listing id (the prior `$ticketId` parameter
+     * name was a misnomer — the caller passes `$lid`).
      */
-    public static function decrementListingStockForExpiredTicket(int $ticketId, int $decrement): int
+    public static function decrementListingStockForExpiredTicket(int $listingId, int $decrement): int
     {
         $pdo = Db::pdo();
-        // Decrement listings.quantity_sold by $decrement.
-        $pdo->prepare(
-            'UPDATE listings SET quantity_sold = GREATEST(quantity_sold - ?, 0), '
-            . 'updated_at = NOW() WHERE id = ?'
-        )->execute([$decrement, $ticketId]);
+        // CR-04 fix: lock the listing row under FOR UPDATE and verify
+        // it's in a state that admits the decrement (active or sold).
+        // A draft listing should never have an expired ticket against it,
+        // but defending in depth avoids cascading data errors if state
+        // ever drifts.
+        $lockStmt = $pdo->prepare(
+            'SELECT quantity_sold, status FROM listings WHERE id = ? FOR UPDATE'
+        );
+        $lockStmt->execute([$listingId]);
+        $row = $lockStmt->fetch();
+        if ($row === false) {
+            return 0;
+        }
+        $currentSold = (int) $row['quantity_sold'];
+        $status = (string) $row['status'];
+        if ($status !== 'active' && $status !== 'sold') {
+            return $currentSold;
+        }
+        if ($decrement <= 0) {
+            return $currentSold;
+        }
+        // CR-04 fix: guard the decrement on `quantity_sold >= ?` so a
+        // fast replay of the cron sweep (within the 5-second window in
+        // runTicketExpirySweep) cannot under-count stock. If the
+        // previous decrement already cleared the unsold slots, the
+        // subsequent replay is a no-op.
+        $decrStmt = $pdo->prepare(
+            'UPDATE listings SET quantity_sold = quantity_sold - ?, '
+            . 'updated_at = NOW() '
+            . 'WHERE id = ? AND quantity_sold >= ? AND status IN (\'active\', \'sold\')'
+        );
+        $decrStmt->execute([$decrement, $listingId, $decrement]);
 
         // Restore the listing's status to 'active' if the decrement
         // frees up stock on a sold-out listing. Guarded on
@@ -595,11 +635,11 @@ class ticket_model
         $pdo->prepare(
             "UPDATE listings SET status = 'active', updated_at = NOW() "
             . "WHERE id = ? AND status = 'sold' AND quantity_sold < quantity"
-        )->execute([$ticketId]);
+        )->execute([$listingId]);
 
         // Return the new quantity_sold for caller inspection.
         $stmt = $pdo->prepare('SELECT quantity_sold FROM listings WHERE id = ?');
-        $stmt->execute([$ticketId]);
+        $stmt->execute([$listingId]);
         $row = $stmt->fetch();
         return $row === false ? 0 : (int) $row['quantity_sold'];
     }
