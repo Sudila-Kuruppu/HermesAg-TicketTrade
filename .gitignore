@@ -28,3 +28,8 @@ Thumbs.db
 
 # Test infra state (cached by bin/test)
 /data/.test-schema-fingerprint
+
+# Per AD-17: runtime DB config (DSN + credentials) is generated locally
+# by bin/dev-setup.sh and never committed.
+config/db.php
+config/db.test.php
