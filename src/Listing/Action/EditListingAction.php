@@ -38,8 +38,11 @@ class EditListingAction
         AuthGuard::requireAuth('/listings/' . $this->currentId() . '/edit');
 
         $user = AuthGuard::currentUser();
+        // WR-06: requireAuth() exits for guests, so reaching here
+        // with $user === null indicates a refactor regression. Throw
+        // rather than emit a misleading 404 (which would mask the bug).
         if ($user === null) {
-            Error::not_found();
+            throw new \LogicException('EditListingAction::handle: requireAuth should have exited for guests');
         }
 
         $listingId = $this->currentId();
@@ -84,8 +87,9 @@ class EditListingAction
         AuthGuard::requireAuth('/listings/' . $this->currentId() . '/edit');
 
         $user = AuthGuard::currentUser();
+        // WR-06: same invariant — requireAuth exits for guests.
         if ($user === null) {
-            Error::not_found();
+            throw new \LogicException('EditListingAction::handlePost: requireAuth should have exited for guests');
         }
 
         $listingId = $this->currentId();
