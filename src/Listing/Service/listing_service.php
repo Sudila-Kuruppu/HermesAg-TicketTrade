@@ -309,7 +309,16 @@ class listing_service
             $clean['description'] = $desc;
         }
 
-        $price = isset($data['price_cents']) ? (int) $data['price_cents'] : 0;
+        // CR-02: accept either `price_rupees` (form view) or `price_cents`
+        // (Service callers / API). If rupees present, translate; cents
+        // wins if both are sent (defense-in-depth against double-submit).
+        $price = 0;
+        if (isset($data['price_cents']) && (int) $data['price_cents'] > 0) {
+            $price = (int) $data['price_cents'];
+        } elseif (isset($data['price_rupees'])) {
+            $r = (int) $data['price_rupees'];
+            $price = $r > 0 ? $r * 100 : 0;
+        }
         if ($price < self::MIN_PRICE_CENTS) {
             $errors['price_cents'] = 'Price must be greater than zero.';
         } elseif ($price > self::MAX_PRICE_CENTS) {

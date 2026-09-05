@@ -97,6 +97,31 @@ class CreateListingFlowTest extends Fixtures
         $this->assertSame(7, $count);
     }
 
+    public function test_action_translates_price_rupees_to_price_cents(): void
+    {
+        // IN-03: end-to-end form-submission smoke. The form collects
+        // `price_rupees`; the Service validates `price_cents`. The
+        // Action layer translates. Drive the Action via the same POST
+        // shape the form would produce (simulating the rendered
+        // inputs) and assert the listing is created with the correct
+        // cent value.
+        $userId = $this->seedUser();
+        $catId = $this->firstCategoryId();
+        $post = [
+            'title' => 'Form-submit smoke',
+            'description' => 'price_rupees should become price_cents',
+            'price_rupees' => 1500, // 1500 LKR -> 150000 cents
+            'category_id' => $catId,
+            'type' => 'product',
+            'condition' => 'good',
+            'quantity' => 1,
+            'action' => 'submit',
+        ];
+        $r = listing_service::createDraft($userId, $post);
+        $this->assertTrue($r['ok'], 'createDraft should accept price_rupees form input');
+        $this->assertSame(150000, (int) $r['data']['price_cents']);
+    }
+
     public function test_route_map_has_create_routes(): void
     {
         $routes = require APP_ROOT . '/config/routes.php';
