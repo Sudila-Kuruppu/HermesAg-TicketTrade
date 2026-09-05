@@ -54,17 +54,26 @@ class Audit
             if ($metadataJson === false) {
                 $metadataJson = null;
             }
+            // CR-05 fix: explicitly bind $actorUserId as PARAM_NULL when
+            // null and PARAM_INT otherwise. PDO's default behavior on
+            // null is implementation-defined; for a BIGINT UNSIGNED FK
+            // column an empty-string bind would break the never-throw
+            // contract when the table is referenced. Normalizing
+            // non-positive ids to null at the Audit boundary also
+            // protects callers that forget the `> 0 ? x : null` cast.
             $stmt = $pdo->prepare(
                 'INSERT INTO audit_log (actor_user_id, action, target_type, target_id, metadata_json, event_at) '
                 . 'VALUES (?, ?, ?, ?, ?, NOW())'
             );
-            $stmt->execute([
-                $actorUserId,
-                $action,
-                $targetType,
-                $targetId,
-                $metadataJson,
-            ]);
+            $bindActor = ($actorUserId !== null && $actorUserId > 0)
+                ? $actorUserId
+                : null;
+            $stmt->bindValue(1, $bindActor, $bindActor === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(2, $action, PDO::PARAM_STR);
+            $stmt->bindValue(3, $targetType, PDO::PARAM_STR);
+            $stmt->bindValue(4, $targetId, PDO::PARAM_INT);
+            $stmt->bindValue(5, $metadataJson, $metadataJson === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->execute();
             return (int) $pdo->lastInsertId();
         } catch (Throwable $e) {
             // D-04: a failed audit write MUST NOT block the business operation.
