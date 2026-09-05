@@ -29,9 +29,13 @@ if (is_file($autoload)) {
 // Timezone: Asia/Colombo per AD-11 (NSBM is in Sri Lanka)
 date_default_timezone_set('Asia/Colombo');
 
-// Error reporting: full in dev, suppressed display in production
+// Error reporting: full in dev, suppressed display in production.
+// Safe-by-default: production hardening is opt-in. If APP_ENV is unset
+// (a common config-drift case), we assume production and require an
+// explicit APP_ENV=development to enable error display.
+$isDev = getenv('APP_ENV') !== false && getenv('APP_ENV') === 'development';
 error_reporting(E_ALL);
-ini_set('display_errors', getenv('APP_ENV') === 'production' ? '0' : '1');
+ini_set('display_errors', $isDev ? '1' : '0');
 ini_set('log_errors', '1');
 ini_set('error_log', APP_ROOT . '/data/php-error.log');
 
@@ -42,7 +46,7 @@ mb_internal_encoding('UTF-8');
 // MUST run BEFORE session_start() so the cookie attributes are
 // consistent with the security baseline. Sessions are skipped in
 // CLI mode so the migrations runner does not start a session.
-$secure = getenv('APP_ENV') === 'production';
+$secure = !$isDev;
 session_set_cookie_params([
     'lifetime' => 7 * 24 * 60 * 60,
     'path' => '/',

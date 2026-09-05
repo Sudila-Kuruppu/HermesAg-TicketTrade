@@ -44,4 +44,36 @@ class SessionConfigTest extends TestCase
         $src = file_get_contents(__DIR__ . '/../../../../config/bootstrap.php');
         $this->assertStringContainsString("PHP_SAPI !== 'cli'", $src);
     }
+
+    public function test_display_errors_safe_by_default(): void
+    {
+        // CR-004: the production gate must default to safe. The old
+        // pattern `getenv('APP_ENV') === 'production'` is wrong because
+        // getenv() returns false when unset, and false === 'production'
+        // is false -> errors leak in prod. Bootstrap must require an
+        // explicit APP_ENV=development to enable display_errors.
+        $src = file_get_contents(__DIR__ . '/../../../../config/bootstrap.php');
+        $this->assertStringContainsString(
+            "getenv('APP_ENV') !== false && getenv('APP_ENV') === 'development'",
+            $src,
+            'display_errors must be gated on an explicit APP_ENV=development'
+        );
+        $this->assertStringContainsString(
+            "ini_set('display_errors', \$isDev ? '1' : '0')",
+            $src,
+            'display_errors must be 0 unless $isDev is true'
+        );
+    }
+
+    public function test_cookie_secure_safe_by_default(): void
+    {
+        // CR-004 (cookie side): $secure must be the inverse of $isDev,
+        // so an unset APP_ENV defaults to secure cookies (HTTPS-only).
+        $src = file_get_contents(__DIR__ . '/../../../../config/bootstrap.php');
+        $this->assertStringContainsString(
+            "\$secure = !\$isDev;",
+            $src,
+            'session cookie secure flag must default to true (safe)'
+        );
+    }
 }
