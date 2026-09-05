@@ -57,7 +57,11 @@ class RouteGuardListingTest extends Fixtures
 
     public function test_cron_route_is_admin_and_rate_limited(): void
     {
-        $routes = require APP_ROOT . '/config/routes.php';
+        // CR-003 split admin POSTs into admin/config/routes.php (691e7dd).
+        // Merge both surfaces so /admin/cron/* keys resolve.
+        $studentRoutes = require APP_ROOT . '/config/routes.php';
+        $adminRoutes = require APP_ROOT . '/admin/config/routes.php';
+        $routes = $studentRoutes + $adminRoutes;
         $opts = $routes['POST /admin/cron/ticket-expiry'][2];
         $this->assertTrue($opts['auth']);
         $this->assertTrue($opts['admin']);
