@@ -238,13 +238,10 @@ class ticket_service
                     'message' => 'Ticket not found.',
                 ]);
             }
-            if ((int) $existing['seller_id'] !== $sellerId) {
-                $pdo->rollBack();
-                return Error::envelope(false, null, [
-                    'code' => 'E_TICKET_FORBIDDEN',
-                    'message' => 'You do not have permission to redeem this ticket.',
-                ]);
-            }
+            // WR-01 fix: state check comes BEFORE seller check so
+            // the error code reflects the actual blocker. A wrong
+            // seller attempting to redeem a non-active ticket now sees
+            // E_TICKET_INVALID_STATE rather than E_TICKET_FORBIDDEN.
             if (
                 (string) $existing['status'] !== 'active'
                 || (string) $existing['dispute_status'] === 'pending'
@@ -253,6 +250,13 @@ class ticket_service
                 return Error::envelope(false, null, [
                     'code' => 'E_TICKET_INVALID_STATE',
                     'message' => 'Ticket is not in a state that allows redemption.',
+                ]);
+            }
+            if ((int) $existing['seller_id'] !== $sellerId) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_FORBIDDEN',
+                    'message' => 'You do not have permission to redeem this ticket.',
                 ]);
             }
 
