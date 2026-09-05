@@ -164,11 +164,42 @@ class ticket_model
     }
 
     /**
+     * CR-01 fix: locking variant of findByCode — takes a row-level
+     * X-lock so the subsequent markRedeemed UPDATE observes the same
+     * snapshot and cannot race against a concurrent redeem/dispute.
+     *
+     * Must be called inside an active PDO transaction (FOR UPDATE
+     * locks are released on COMMIT/ROLLBACK).
+     */
+    public static function findByCodeForUpdate(PDO $pdo, string $code): ?array
+    {
+        $stmt = $pdo->prepare('SELECT * FROM tickets WHERE ticket_code = ? LIMIT 1 FOR UPDATE');
+        $stmt->execute([$code]);
+        $r = $stmt->fetch();
+        return $r === false ? null : $r;
+    }
+
+    /**
      * Find a ticket by its internal BIGINT id.
      */
     public static function findById(PDO $pdo, int $id): ?array
     {
         $stmt = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
+        $stmt->execute([$id]);
+        $r = $stmt->fetch();
+        return $r === false ? null : $r;
+    }
+
+    /**
+     * CR-02 fix: locking variant of findById — takes a row-level
+     * X-lock so the subsequent incrementSession / markRedeemedById
+     * UPDATE observes the same snapshot.
+     *
+     * Must be called inside an active PDO transaction.
+     */
+    public static function findByIdForUpdate(PDO $pdo, int $id): ?array
+    {
+        $stmt = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1 FOR UPDATE');
         $stmt->execute([$id]);
         $r = $stmt->fetch();
         return $r === false ? null : $r;

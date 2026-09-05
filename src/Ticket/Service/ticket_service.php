@@ -227,8 +227,10 @@ class ticket_service
         try {
             $pdo->beginTransaction();
 
-            // Pre-flight lookup to distinguish NOT_FOUND from FORBIDDEN/INVALID_STATE.
-            $existing = ticket_model::findByCode($pdo, $code);
+            // Pre-flight lookup (CR-01 fix: use FOR UPDATE so the row is
+            // row-locked before we validate). The X-lock is released
+            // when this transaction commits or rolls back.
+            $existing = ticket_model::findByCodeForUpdate($pdo, $code);
             if ($existing === null) {
                 $pdo->rollBack();
                 return Error::envelope(false, null, [
