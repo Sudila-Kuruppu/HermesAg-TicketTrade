@@ -307,8 +307,10 @@ class auth_service
             //  - SQLSTATE 23000 on uniq_email / uniq_student_id → collapse to
             //    the same combined E_AUTH_ALLOWLIST copy so attackers can't
             //    distinguish email-taken from student-id-mismatch from allowlist-miss.
-            if ((string) $e->getCode() === '23000'
-                && str_contains($e->getMessage(), 'uniq_nickname')) {
+            if (
+                (string) $e->getCode() === '23000'
+                && str_contains($e->getMessage(), 'uniq_nickname')
+            ) {
                 return [
                     'ok' => false,
                     'error' => [
