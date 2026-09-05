@@ -26,6 +26,7 @@ use App\Listing\Model\listing_revision_model;
 use App\Support\Db;
 use App\Support\Error;
 use App\Support\ImageUpload;
+use App\Support\Network;
 use App\Support\RateLimit;
 use PDO;
 
@@ -652,7 +653,12 @@ class listing_service
      */
     private static function enforceRateLimit(int $userId): ?array
     {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        // CR-07: use Network::clientIp() to honor X-Forwarded-For only
+        // when the request came from a trusted proxy (env-configured
+        // via TT_TRUSTED_PROXIES). Falls back to REMOTE_ADDR otherwise
+        // (no log spam, safe default). The userId is the bucket key —
+        // 20/hr per user, regardless of which IP they came from.
+        $ip = Network::clientIp();
         $rl = RateLimit::hit('listing_create', $ip, (string) $userId);
         if (!$rl['allowed']) {
             return Error::envelope(false, null, [

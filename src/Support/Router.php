@@ -144,7 +144,10 @@ class Router
         // Per-route rate limit (D-12, D-13). Runs before the handler so
         // the cost of password verification is skipped on a flood.
         if (!empty($opts['rate_limit'])) {
-            $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+            // CR-07: honor X-Forwarded-For only when the request came
+            // from a trusted proxy (env-configured via TT_TRUSTED_PROXIES);
+            // default falls back to REMOTE_ADDR for direct connections.
+            $ip = Network::clientIp();
             $result = RateLimit::hit((string) $opts['rate_limit'], $ip);
             if (!$result['allowed']) {
                 $GLOBALS['_tt_form_error'] = [
