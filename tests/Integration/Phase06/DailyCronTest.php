@@ -170,6 +170,68 @@ class DailyCronTest extends Fixtures
         $first = user_service::recomputeStreakDisplay($this->pdo);
         $second = user_service::recomputeStreakDisplay($this->pdo);
         $this->assertSame($first['processed'], $second['processed']);
+
+        // Phase 6 audit: the streak bonus is a lifetime milestone
+        // (points_log existence-check guards re-runs), so the
+        // second invocation must produce NO new streak_7day /
+        // streak_30day rows and NO new awards. This was the bug
+        // before the audit: a user hitting day 7, then the cron
+        // running twice that day, would get +15+15=30 instead of +15.
+        $this->assertSame([], $first['awards']);
+        $this->assertSame([], $second['awards']);
+    }
+
+    /**
+     * Phase 6 audit regression: recompute must not duplicate the
+     * streak_7day bonus across re-runs (manual /admin/cron/daily
+     * trigger after the auto-run is the realistic scenario).
+     *
+     * Strengthens test_recompute_is_idempotent_within_a_day by
+     * asserting on the underlying points_log rows, not just the
+     * processed/awards counts.
+     */
+    public function test_recompute_does_not_duplicate_streak_award(): void
+    {
+        $user = $this->seedUser(['nickname' => 'no_double_bonus']);
+        $this->seedSessionFor($user);
+
+        // Seed the previous 6 consecutive days so today's session
+        // is the 7th (the trigger for the +15 streak_7day bonus).
+        $today = new \DateTime('now', new \DateTimeZone('Asia/Colombo'));
+        for ($i = 1; $i <= 6; $i++) {
+            $d = (clone $today)->modify("-{$i} day")->format('Y-m-d');
+            $this->seedLoginStreak($user, $d, 1);
+        }
+
+        // First run: should write exactly 1 streak_7day row + 1 award.
+        $first = user_service::recomputeStreakDisplay($this->pdo);
+        $this->assertCount(1, $first['awards']);
+        $this->assertSame(7, $first['awards'][0]['streak_days']);
+        $this->assertSame(15, $first['awards'][0]['delta']);
+
+        $countAfterFirst = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM points_log WHERE user_id = $user AND reference_type = 'streak_7day'"
+        )->fetchColumn();
+        $this->assertSame(1, $countAfterFirst, 'first run: exactly one streak_7day row');
+
+        // Second run (simulating a manual /admin/cron/daily trigger
+        // after the auto-run): must NOT award again, must NOT write
+        // a second streak_7day points_log row.
+        $second = user_service::recomputeStreakDisplay($this->pdo);
+        $this->assertSame([], $second['awards'], 'second run: no awards');
+
+        $countAfterSecond = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM points_log WHERE user_id = $user AND reference_type = 'streak_7day'"
+        )->fetchColumn();
+        $this->assertSame(1, $countAfterSecond, 'second run: still exactly one streak_7day row');
+
+        // Third run for good measure (race-against-flake paranoia).
+        $third = user_service::recomputeStreakDisplay($this->pdo);
+        $this->assertSame([], $third['awards']);
+        $countAfterThird = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM points_log WHERE user_id = $user AND reference_type = 'streak_7day'"
+        )->fetchColumn();
+        $this->assertSame(1, $countAfterThird);
     }
 
     public function test_full_pipeline_reflects_in_summary_table(): void
