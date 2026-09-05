@@ -61,15 +61,22 @@ class Auth
         }
         $GLOBALS['current_user'] = $row;
 
-        $now = (new DateTime('now', new DateTimeZone('Asia/Colombo')))->format('Y-m-d H:i:s');
-        $lastSeen = strtotime($row['last_seen']);
-        if ($lastSeen !== false && $lastSeen < time() - 300) {
-            try {
+        // Explicit TZ on both sides (IN-03). The previous shape
+        // formatted $now as a Colombo wall-clock string, parsed
+        // last_seen via strtotime (which uses the script's default
+        // TZ — pinned to Asia/Colombo by bootstrap.php), and compared
+        // Unix timestamps. That works today but silently if bootstrap
+        // ever stops pinning the TZ. Use DateTime objects end-to-end.
+        try {
+            $tz = new DateTimeZone('Asia/Colombo');
+            $nowDt = new DateTime('now', $tz);
+            $lastSeenDt = new DateTime((string) $row['last_seen'], $tz);
+            if ($nowDt->getTimestamp() - $lastSeenDt->getTimestamp() >= 300) {
                 $u = Db::pdo()->prepare('UPDATE sessions SET last_seen = ? WHERE session_id = ?');
-                $u->execute([$now, $sid]);
-            } catch (\Throwable $e) {
-                // idempotent; a failed touch does not log the user out.
+                $u->execute([$nowDt->format('Y-m-d H:i:s'), $sid]);
             }
+        } catch (\Throwable $e) {
+            // idempotent; a failed touch does not log the user out.
         }
     }
 
