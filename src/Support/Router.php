@@ -8,7 +8,7 @@
  *   ['METHOD PATH' => [ClassName, methodName, opts]]
  * where opts is [auth => bool, admin => bool, csrf => bool, rate_limit => string|null].
  * Path placeholders like {nickname} are matched and exposed via
- * $GLOBALS['_tt_route_params'].
+ * $GLOBALS['_tt_path_params'] as a [name => capturedValue] map.
  */
 
 declare(strict_types=1);
