@@ -226,7 +226,17 @@ class points_service
             // freeze flips users.points_frozen on first hit; the cap
             // short-circuits the row insert. Both are evaluated for
             // buyer and seller independently (a cap hit on buyer
-            // does NOT block seller, and vice versa).
+            // does NOT block seller, and vice versa) — the loop
+            // records any per-party cap-hit but continues to the
+            // next party. The 06-REVIEW WR-02 audit closed the
+            // "buyer cap drops seller's award" gap: prior code
+            // returned on the first cap hit, silently dropping
+            // the seller's award. Now we continue to evaluate
+            // seller independently and only return the first hit
+            // if BOTH parties are capped; if only one party caps,
+            // the OTHER party is still awarded normally below.
+            $buyerCapResult = null;
+            $sellerCapResult = null;
             foreach (
                 [
                     [$buyerId, $effectiveBuyer, 'buyer'],
@@ -242,15 +252,36 @@ class points_service
                     $ticketId,
                     $ownsTransaction
                 );
-                if ($capResult !== null) {
-                    if ($ownsTransaction) {
-                        $pdo->commit();
-                    }
-                    return [
-                        'ok' => true,
-                        'data' => $capResult,
-                    ];
+                if ($party === 'buyer') {
+                    $buyerCapResult = $capResult;
+                } else {
+                    $sellerCapResult = $capResult;
                 }
+                // Continue to the next party — independent checks.
+            }
+            // If BOTH parties hit a cap, return the FIRST cap envelope.
+            // The other party's cap row + audit are already written
+            // (zero-delta, metadata.velocity_cap_hit=true). No INSERT
+            // happens for either party on this call.
+            if ($buyerCapResult !== null && $sellerCapResult !== null) {
+                if ($ownsTransaction) {
+                    $pdo->commit();
+                }
+                return [
+                    'ok' => true,
+                    'data' => $buyerCapResult,
+                ];
+            }
+            // If only ONE party hit a cap, proceed to the normal
+            // INSERT path for the OTHER party. The capped party's
+            // zero-delta row + audit are already in place. We track
+            // the partial-capped state and synthesize an envelope
+            // after the INSERTs are written.
+            $partialCapParty = null;
+            if ($buyerCapResult !== null) {
+                $partialCapParty = 'buyer';
+            } elseif ($sellerCapResult !== null) {
+                $partialCapParty = 'seller';
             }
 
             // Pair-cap (FR-PTS-006): 2 counted transactions per
@@ -307,39 +338,61 @@ class points_service
             $uuidBuyer = Uuid::uuid7()->toString();
             $uuidSeller = Uuid::uuid7()->toString();
 
-            $newBuyerPoints = (int) $buyerRow['points'] + $effectiveBuyer;
-            $newSellerPoints = (int) $sellerRow['points'] + $effectiveSeller;
+            // WR-02 fix: if only ONE party hit a cap (recorded by
+            // $partialCapParty above), the capped party already has a
+            // zero-delta cap row from applyVelocityAndFreeze — skip
+            // the new INSERT for that party. The OTHER party gets the
+            // normal award. If neither party capped, this is a no-op.
+            $awardBuyer = $partialCapParty !== 'buyer';
+            $awardSeller = $partialCapParty !== 'seller';
+
+            $newBuyerPoints = (int) $buyerRow['points'];
+            $newSellerPoints = (int) $sellerRow['points'];
+            if ($awardBuyer) {
+                $newBuyerPoints = $newBuyerPoints + $effectiveBuyer;
+            }
+            if ($awardSeller) {
+                $newSellerPoints = $newSellerPoints + $effectiveSeller;
+            }
             $newBuyerTier = auth_service::tierFromPoints($newBuyerPoints);
             $newSellerTier = auth_service::tierFromPoints($newSellerPoints);
 
-            points_log_model::insert(
-                $pdo,
-                $buyerId,
-                $effectiveBuyer,
-                $referenceType,
-                $ticketId,
-                $newBuyerPoints,
-                $uuidBuyer,
-                null
-            );
-            points_log_model::insert(
-                $pdo,
-                $sellerId,
-                $effectiveSeller,
-                $referenceType,
-                $ticketId,
-                $newSellerPoints,
-                $uuidSeller,
-                null
-            );
+            if ($awardBuyer) {
+                points_log_model::insert(
+                    $pdo,
+                    $buyerId,
+                    $effectiveBuyer,
+                    $referenceType,
+                    $ticketId,
+                    $newBuyerPoints,
+                    $uuidBuyer,
+                    null
+                );
+            }
+            if ($awardSeller) {
+                points_log_model::insert(
+                    $pdo,
+                    $sellerId,
+                    $effectiveSeller,
+                    $referenceType,
+                    $ticketId,
+                    $newSellerPoints,
+                    $uuidSeller,
+                    null
+                );
+            }
 
             $upd = $pdo->prepare(
                 'UPDATE users SET points = ?, tier = ?, updated_at = NOW() WHERE user_id = ?'
             );
-            $upd->execute([$newBuyerPoints, $newBuyerTier, $buyerId]);
-            $upd->execute([$newSellerPoints, $newSellerTier, $sellerId]);
+            if ($awardBuyer) {
+                $upd->execute([$newBuyerPoints, $newBuyerTier, $buyerId]);
+            }
+            if ($awardSeller) {
+                $upd->execute([$newSellerPoints, $newSellerTier, $sellerId]);
+            }
 
-            if ($referenceType === 'final_session') {
+            if ($referenceType === 'final_session' && ($awardBuyer || $awardSeller)) {
                 $inc = $pdo->prepare(
                     'UPDATE users SET redeemed_count = redeemed_count + 1 WHERE user_id IN (?, ?)'
                 );
@@ -349,16 +402,39 @@ class points_service
             if ($ownsTransaction) {
                 $pdo->commit();
             }
+            // Synthesize the response envelope. If both awarded, this
+            // is the normal path. If only one party was awarded (the
+            // other hit a cap), surface that explicitly so the caller
+            // can render the right UX ("your side credited, the other
+            // side hit the daily cap").
+            if ($partialCapParty === null) {
+                return [
+                    'ok' => true,
+                    'data' => [
+                        'event_uuid_buyer' => $uuidBuyer,
+                        'event_uuid_seller' => $uuidSeller,
+                        'delta_buyer' => $effectiveBuyer,
+                        'delta_seller' => $effectiveSeller,
+                        'redeemed_count_buyer' => $buyerRedeemedCount,
+                        'redeemed_count_seller' => $sellerRedeemedCount,
+                    ],
+                ];
+            }
+            $capEnvelope = $partialCapParty === 'buyer' ? $buyerCapResult : $sellerCapResult;
             return [
                 'ok' => true,
-                'data' => [
-                    'event_uuid_buyer' => $uuidBuyer,
-                    'event_uuid_seller' => $uuidSeller,
-                    'delta_buyer' => $effectiveBuyer,
-                    'delta_seller' => $effectiveSeller,
-                    'redeemed_count_buyer' => $buyerRedeemedCount,
-                    'redeemed_count_seller' => $sellerRedeemedCount,
-                ],
+                'data' => array_merge(
+                    $capEnvelope,
+                    [
+                        'partial_cap_party' => $partialCapParty,
+                        'event_uuid_buyer' => $awardBuyer ? $uuidBuyer : null,
+                        'event_uuid_seller' => $awardSeller ? $uuidSeller : null,
+                        'delta_buyer' => $awardBuyer ? $effectiveBuyer : 0,
+                        'delta_seller' => $awardSeller ? $effectiveSeller : 0,
+                        'redeemed_count_buyer' => $buyerRedeemedCount,
+                        'redeemed_count_seller' => $sellerRedeemedCount,
+                    ]
+                ),
             ];
         } catch (\Throwable $e) {
             if ($ownsTransaction && $pdo->inTransaction()) {
