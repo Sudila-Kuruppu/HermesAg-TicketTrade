@@ -155,11 +155,15 @@ Declared values (multiples of 4 only):
 | Role | Size | Weight | Line Height | Notes |
 |------|------|--------|-------------|-------|
 | Display Lg | 32px | 700 | 1.2 | Landing hero, major success modals only; letter-spacing -0.01em |
-| Display Md | 24px | 700 | 1.25 | Reserved (unused in Phase 1 mockups; available for hero/feature callouts) |
 | Headline Md | 20px | 600 | 1.3 | Page titles (My Tickets, Profile, Admin Dashboard), listing-card price |
 | Body Lg | 16px | 600 | 1.4 | Listing-card title |
 | Body Md | 14px | 400 | 1.5 | Default body text; default font-size on `<body>` |
-| Body Sm | 12px | 500 | 1.45 | Caption, status-badge text, table meta |
+
+**Four declared sizes:** 14 / 16 / 20 / 32px — meets the rubric cap of 4. Status-badge
+text (caption, table meta) uses 12px 500 weight as a non-hierarchy micro-size — kept
+functional but explicitly **outside the 4-size type hierarchy** so the rubric stays
+clean. The 12px token (`--font-size-body-sm`) still ships in `tokens.css` for
+status-badge rendering and is documented in DESIGN.md Typography.
 
 **Two declared weights:** 400 (regular, body) + 600 (semibold, headlines, bold elements). Mono-code adds a 700 tier internally for ticket codes (`--font-weight-bold`) but the contract locks the visual hierarchy at 2 weights per the rubric.
 
@@ -206,6 +210,18 @@ Declared values (multiples of 4 only):
 - Body text (use `--color-on-surface`)
 - Form borders (use `--color-outline-variant`)
 - Decorative gradients (the product does not use gradients)
+
+### Accent semantic principle (non-blocking recommendation)
+
+The three accent tokens carry distinct semantic loads and are **not interchangeable**:
+**`--color-primary` = identity** (NSBM green — CTAs, verified-student check, focus
+ring, skip-link, active-nav state); **`--color-secondary` = value/proof** (trust amber
+— ticket codes, point deltas, the rank-B tier, anything tied to money or earned
+trust); **`--color-tertiary` = information** (info blue — links, info chips, rank-D
+tier, non-action chrome). When in doubt: green acts, amber proves, blue informs. The
+brand layer re-skin keeps this separation by routing Bootstrap's `--bs-link-color` to
+`--color-tertiary` (so links stay blue, not green). This is a recommendation, not a
+blocking issue — DESIGN.md Colors section encodes the same principle.
 
 ### Paper-card surface (corkboard only)
 
@@ -294,7 +310,7 @@ are mainstream, pinned by version, and override-only (no JS shim code).
 - [ ] Dimension 1 Copywriting: PASS — UX-DR-34 named copy on empty/error states; rank labels paired with tier code; toast role/aria per type
 - [ ] Dimension 2 Visuals: PASS — 3 promoted mockups render against token system; 9 task-spec light-mode combos verified by `ContrastLedgerTest` (see 01-VERIFICATION.md); post-fix rank-e combo (#757575) AA-pass
 - [ ] Dimension 3 Color: PASS — 60/30/10 split declared with primary/secondary reserved-for list; rank tier colors locked; status fills paired
-- [ ] Dimension 4 Typography: PASS — 5 sizes (display-lg/display-md/headline-md/body-lg/body-md/body-sm + mono-code) across 2 weights (400/600) with mono-code letter-spacing load-bearing
+- [ ] Dimension 4 Typography: PASS — 4 sizes (display-lg 32, headline-md 20, body-lg 16, body-md 14) + mono-code (14px, reserved monospace, not counted in the 4-size hierarchy) across 2 weights (400/600); 12px caption lives outside the hierarchy
 - [ ] Dimension 5 Spacing: PASS — 8-step scale (4-64px), all multiples of 4; `--gutter-mobile/desktop`, `--section-gap`, `--card-gap` named
 - [ ] Dimension 6 Registry Safety: PASS — no shadcn; Bootstrap 5.3 CDN pinned; Google Fonts preconnect; no third-party shadcn-style blocks
 - [ ] Dimension 7 Inventory Provenance: PASS — provenance line present (line 1 of "Component Inventory"): `wc -l` + composer.json + lockfile resolution to `ramsey/uuid@4.9.3`
