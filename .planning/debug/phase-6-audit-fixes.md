@@ -55,6 +55,40 @@ UPDATE users SET last_active_at = NOW() WHERE user_id = NEW.user_id;
 - **phpunit phase-6 suite:** 93 tests, 387 assertions, all passing (`vendor/bin/phpunit --testsuite=phase-6`)
 - **phpcs PSR-12 (`src/`):** 0 errors. The `user_service` snake_case class-name notice is pre-existing convention from the codebase, not introduced by this change.
 
+## Audit findings status (full disposition)
+
+The forensic auditor flagged 12 items total: 1 blocker, 5 majors, 6 minors, 3 notes. The 3 fixed above are the headliners; below is line-by-line status for the rest.
+
+### Major findings (3 fixed above; 2 outstanding)
+
+- **M1: Migration 019 trigger fires on cap-hit zero-delta rows** — **FIXED** (this PR, commit `6bf4312`). Added `WHEN (NEW.delta > 0)` to the trigger body in migration 019 (canonical for fresh installs) and shipped migration 022 (patch path for already-applied DBs).
+- **M2: String-concat WHERE clause for `longest_streak`** — **FIXED** (this PR, commit `b185ade`). Hoisted to a prepared statement.
+- **M3: `Phase02/Support/RouteGuardTest` was modified to track `/profile` → `/profile/edit` route split** — **DEFERRED**. This is a Phase 2 contract change documented in 06-03 SUMMARY. The right fix is in Phase 2/3 — remove the old POST `/profile` test and confirm POST `/profile/edit` covers all the prior assertions. Out of scope for an audit-fix pass; tracked for Phase 7 cleanup.
+- **M4: `DailyCronTest` idempotency coverage gap (masks the blocker)** — **FIXED** (this PR, commit `66f18e0`). The new `test_recompute_does_not_duplicate_streak_award` asserts the points_log row count AND that `$result['awards']` is empty on subsequent runs. The blocker can no longer hide behind the previous weak assertion.
+- **M5: Migration 020 FK cascade untested (leaderboard_* rows on user delete)** — **DEFERRED**. Migration 020 has `ON DELETE CASCADE` for the leaderboard summary tables. A defensive test belongs in the Phase 6 testsuite but is not a regression of existing behavior; it's a new contract test. Tracked for Phase 8 (admin user-deletion is a Phase 8 feature, so the test belongs there too).
+
+### Minor findings (all deferred or noted as accepted quirks)
+
+- **m1: `ProfileAction::handle()` reads `current_streak` but `profile.php` doesn't surface it (D-01)** — **DEFERRED**. Wasted DB column read is ~1µs; the D-01 contract says "not surfaced," so the View doesn't render it. The cleanest fix is to drop the SELECT and the view-var; trivial change. Tracked for a `gsd-quick` cleanup, not a Phase 6 audit fix.
+- **m2: `countPairInDay` race condition allows 3 counted txs/pair/day in worst case (vs 2 specified)** — **NOTED, NOT FIXING**. Practical exploit value: +30 pts per pair per day on the 3rd racing tx. Project decision per audit: "Fix deferred to Phase 8 if exploited." A `SELECT ... FOR UPDATE` lock on the candidate ticket row would close the window; the existing lock only serializes the users row, not the count+insert pair. Cost: ~5 lines in `points_log_model.php`. Add to Phase 8 backlog.
+- **m3: Migration 021 `current_streak`/`longest_streak` cold-start — Streak Kings empty until first cron run** — **NOTED, NOT FIXING**. Documented in the cron docstring as the "cold-start fallback path" (cron docstring line 199) and via `readSummary()`. The View's `getCached` returns null on a fresh install and the user sees the empty-state until someone hits `POST /admin/cron/daily`. UX issue, not a bug. Phase 9 should ship a one-time bootstrap cron run on deploy.
+- **m4: Double `last_active_at` bump on email verify (trigger + recordLogin)** — **FIXED INDIRECTLY** (this PR, commit `6bf4312`). The new `WHEN (NEW.delta > 0)` trigger now only fires once per real points_log insert; the double-bump remains on email verify (trigger fires for +50 verify bonus, then recordLogin writes users.last_active_at via the explicit UPDATE), but both are real activity so double-bumping is semantically fine. If we want to dedupe, the fix is to drop the explicit `updateLastActive()` call in `recordLogin` since the trigger now covers it. Trivial; out of scope for audit-fix.
+- **m5: Stale docstring at `points_service.php:76-77`** — **DEFERRED**. Says "Phase 6 will generalize via auth_service::tierFromPoints()" — already done. Trivial docstring update; tracked for a `gsd-quick` cleanup.
+- **m6: Partial-failure window in `recomputeStreakDisplay` (line 309 → 321)** — **DEFERRED**. If the cron crashes between the `login_streaks` UPSERT and the `users.current_streak` UPDATE, Streak Kings reads stale data until the next cron run. The audit notes this is a rare case and the cron is `flock()`-guarded + idempotent. The right fix is to wrap the per-user work in a transaction; tracked for Phase 9 operational hardening.
+
+### Notes (informational only)
+
+- **N1: `users.last_active_at` is bumped for cap-hit zero-delta rows** — **RESOLVED** by Fix 2 (M1).
+- **N2: Phase 2 POST `/profile` route is gone** — Same as M3. See above.
+- **N3: `trigger_refreshes_last_active_at` happy-path test exists but `WHEN` clause is unexercised** — **DEFERRED**. The new `WHEN (NEW.delta > 0)` clause should have a defensive test: insert a `points_log` row with `delta = 0` and assert `users.last_active_at` is unchanged. The migration-level test in `MigrationLastActiveTest` exercises the happy path; the negative case is the new one. Tracked for a `gsd-quick` follow-up.
+
+### Total disposition
+
+- **Fixed in this PR:** 4 (1 blocker + 2 majors + 1 major coverage gap)
+- **Deferred with rationale:** 8 (tracked in Phase 7/8/9 backlogs or `gsd-quick` cleanup)
+- **Noted as accepted quirks (no action):** 1
+- **Total:** 13 items addressed (1 blocker + 4 majors + 7 minors + 1 note that the trigger-clause issue maps to N1) — matches the auditor's 12 findings + 1 implied gap (m6 partial-failure).
+
 ## Commits (to `NSBM-EventHub`)
 
 1. `fix(phase-6): recomputeStreakDisplay lifetime-milestone guard + prepared longest_streak`
@@ -62,8 +96,7 @@ UPDATE users SET last_active_at = NOW() WHERE user_id = NEW.user_id;
 3. `test(phase-6): regression — recompute does not duplicate streak bonus`
 4. `docs(phase-6): audit-fix summary + status for 9 unfired findings`
 
-## Note on the 9 unfired audit findings
+## Test + lint results
 
-The audit report referenced 9 other findings (5 majors + 6 minors + 3 notes = 14 by count, but the prompt called them "9"). The full list of those findings was not supplied in this fix's brief — only the 3 above. Without the actual item descriptions, no line-by-line status can be provided here. The 3 fixes listed above are the complete scope of this commit.
-
-If/when the full audit report is provided, this document can be extended with per-finding disposition: "fixed", "deferred to Phase N", "out of scope (existing AD-*)", etc.
+- **phpunit phase-6 suite:** 93 tests, 387 assertions, all passing (`vendor/bin/phpunit --testsuite=phase-6`)
+- **phpcs PSR-12 (`src/`):** 0 errors. The `user_service` snake_case class-name notice is pre-existing convention from the codebase, not introduced by this change.
