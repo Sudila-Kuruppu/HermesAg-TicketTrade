@@ -44,11 +44,15 @@ $avatarId = (int) max(1, min(12, (int) ($profile['avatar_id'] ?? 1)));
 $avatarSrc = '/assets/img/avatars/avatar-' . $avatarId . '.svg';
 
 // Format created_at in Asia/Colombo (ARCHITECTURE-SPINE Conventions).
+// The DB stores this column as an Asia/Colombo wall-clock string
+// (users.created_at is written via new DateTime('now', Asia/Colombo) per
+// user_model + auth_service). Parse it AS Asia/Colombo, not UTC — parsing
+// as UTC then converting shifts users registered at Colombo evening into
+// the next day (displaying the wrong join date).
 $createdAtFormatted = '';
 if (!empty($profile['created_at'])) {
     try {
-        $createdAtFormatted = (new DateTime((string) $profile['created_at'], new DateTimeZone('UTC')))
-            ->setTimezone(new DateTimeZone('Asia/Colombo'))
+        $createdAtFormatted = (new DateTime((string) $profile['created_at'], new DateTimeZone('Asia/Colombo')))
             ->format('d M Y');
     } catch (\Throwable $e) {
         $createdAtFormatted = (string) $profile['created_at'];
