@@ -194,9 +194,11 @@ class points_log_model
         $stmt = $pdo->prepare(
             'SELECT delta, reference_type, event_at, metadata '
             . 'FROM points_log WHERE user_id = ? '
-            . 'ORDER BY event_at DESC, id DESC LIMIT ' . $limit
+            . 'ORDER BY event_at DESC, id DESC LIMIT ?'
         );
-        $stmt->execute([$userId]);
+        $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $out = [];
         foreach ($rows as $r) {
