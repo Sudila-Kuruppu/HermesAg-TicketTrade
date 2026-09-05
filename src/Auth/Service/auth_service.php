@@ -300,10 +300,25 @@ class auth_service
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            // Race on the unique nickname or email index (uniq_email /
-            // uniq_nickname / uniq_student_id) — collapse to the same
-            // combined E_AUTH_ALLOWLIST so the public copy stays the
-            // same for the attacker.
+            // Race on a unique index. Differentiate nickname vs email/student_id:
+            //  - SQLSTATE 23000 + 'uniq_nickname' in the message → the user's
+            //    nickname was registered by someone else a few ms before them.
+            //    Match the pre-check's E_NICKNAME_TAKEN copy (D-13: nicknames
+            //    are intentionally public, no enumeration concern here).
+            //  - SQLSTATE 23000 on uniq_email / uniq_student_id → collapse to
+            //    the same combined E_AUTH_ALLOWLIST copy so attackers can't
+            //    distinguish email-taken from student-id-mismatch from allowlist-miss.
+            if ((string) $e->getCode() === '23000'
+                && str_contains($e->getMessage(), 'uniq_nickname')) {
+                return [
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'E_NICKNAME_TAKEN',
+                        'message' => 'Nickname taken. Pick another.',
+                        'fields' => ['nickname' => 'Nickname taken. Pick another.'],
+                    ],
+                ];
+            }
             return [
                 'ok' => false,
                 'error' => [
