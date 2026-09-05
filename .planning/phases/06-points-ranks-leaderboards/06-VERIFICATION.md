@@ -1,17 +1,20 @@
 ---
 phase: 06
 phase_name: Points, Ranks & Leaderboards
-status: gaps_found
-verified_at: 2026-09-05T05:30:00Z
+status: passed
+verified_at: 2026-09-05T05:50:00Z
 verifier: gsd-verifier
+re_verified_at: 2026-09-05T05:50:00Z
+resolution_commits: [8d4964c, dfad85e]
 test_suite:
-  phase-6: 107/107 tests, 451 assertions (PASS — deterministic order with workaround migration patch; fresh-DB migration FAILS so this baseline is only reproducible via the patched migrations)
-  phase-5: 56/56 tests, 204 assertions (PASS — matches pre-phase-6 baseline)
+  phase-6: 107/107 tests, 451 assertions, 0 failures, 0 errors
+  phase-5: 56/56 tests, 204 assertions (regression check — matches pre-phase-6 baseline)
   full: not run (per documented fast-path: phase-5 + phase-6 only)
 migration:
-  applied: 18/22 on a fresh DB; 21/22 only with the uncommitted `WHEN` workaround patch
-  idempotent: false — re-running `php migrate.php` on a DB that has 001-018 applied FAILS at 019 with SQLSTATE[42000] syntax error. The `.applied` marker can never advance past 018 on a fresh install.
-  broken_migrations: [019_users_last_active.sql, 022_trigger_cap_hit_ignore.sql]
+  applied: 22/22
+  idempotent: true — `php migrate.php` reports "Already up-to-date (0 files to apply)" on a fully-migrated DB; trigger survives re-runs.
+  trigger_present: trg_points_log_refresh_last_active with body `UPDATE users SET last_active_at = IF(NEW.delta > 0, NOW(), last_active_at) WHERE user_id = NEW.user_id` (MariaDB 11.4.5 verified)
+  previously_broken: [019_users_last_active.sql, 022_trigger_cap_hit_ignore.sql] — fix in commit 8d4964c replaced the `WHEN (NEW.delta > 0)` clause (rejected by MariaDB 11.4.5) with an inline `IF()` expression
 phpcs:
   new_errors: 0
   pre_existing_warnings: 31 snake_case class-name ERRORs (AGENTS.md project convention) + ~90 line-length WARNINGs across `src/`
@@ -84,50 +87,38 @@ gaps:
   - gap_id: MIGRATION_019_WHEN_CLAUSE_INVALID
     severity: blocker
     truth: "Migration 019 + 022 apply cleanly + idempotently on a fresh DB; re-running php migrate.php is a no-op"
-    status: failed
-    artifacts:
-      - path: "migrations/019_users_last_active.sql"
-        issue: "Line 43 uses `CREATE TRIGGER ... FOR EACH ROW WHEN (NEW.delta > 0) UPDATE ...`. The MariaDB 11.4.5 server on /tmp/mysql.sock rejects this with SQLSTATE[42000] near `WHEN (NEW.delta > 0) UPDATE`. Direct probe via mariadb CLI on a minimal `FOR EACH ROW WHEN (NEW.id > 0) UPDATE` trigger also fails. The `WHEN` clause is the documented MariaDB 10.0.2+ feature but is not implemented in this server build (likely a 10.0.2-era grammar that was tightened). Phase 6 cannot be installed from scratch on this deployment."
-      - path: "migrations/022_trigger_cap_hit_ignore.sql"
-        issue: "Same broken syntax (line 20). Ships as a patch path for already-applied DBs but cannot apply anywhere because the trigger creation itself fails."
-    impact: "PHASE 6 CANNOT BE INSTALLED FROM SCRATCH on this deployment. Running `php migrate.php` against an empty tickettrade_test DB fails at migration 019; .applied stops at 018; migrations 020/021/022 never apply. The test suite cannot run end-to-end without a manual workaround (drop the `WHEN (NEW.delta > 0)` clause from the trigger body in both 019 and 022, then manually mark 019-022 as applied in .applied). On a DB that has 001-018 already applied (e.g., this server's tickettrade_test), the same re-run failure means migrations are NOT idempotent — re-running never reaches the 'Already up-to-date' state, always fails at 019. The audit-fix docstring's claim `MariaDB 11.4.5 (verified)` is wrong for this server."
-    missing:
-      - "Either: rewrite the trigger body to omit `WHEN (NEW.delta > 0)` and rely on application-layer filtering in points_service / on_break_pill to read metadata.velocity_cap_hit / pair_cap_hit before refreshing last_active_at (revert the cap-hit-ignore optimization that motivated the audit fix)"
-      - "Or: confirm MariaDB server version supports `WHEN` in triggers (this server reports 11.4.5 but the feature is unavailable — likely a vendor-specific build)"
-      - "Or: use a BEFORE INSERT stored procedure that checks NEW.delta and conditionally executes the UPDATE (multi-statement body requires DELIMITER which the runner doesn't support)"
+    status: resolved
+    resolved_by: 8d4964c
+    resolved_at: 2026-09-05
+    resolution_note: "Replaced `WHEN (NEW.delta > 0) UPDATE` with inline `IF(NEW.delta > 0, NOW(), last_active_at)` expression. Single-statement trigger, no compound block, no DELIMITER change required. MariaDB 11.4.5 verified. SHOW CREATE TRIGGER now returns the IF() expression body."
   - gap_id: DEV_DB_MIGRATION_BROKEN
     severity: blocker
     truth: "php migrate.php on the dev DB (tickettrade) is idempotent; re-running reports Already up-to-date"
-    status: failed
-    artifacts:
-      - path: "migrations/.applied"
-        issue: "Currently has 18 entries (001-018). Running php migrate.php fails at 019 — same SQLSTATE[42000] as the test DB. Schema shows users.last_active_at + frozen_at + last_unfrozen_at columns exist (so the ALTER TABLE statements ran before the trigger failure on a prior partial attempt), but migrations/.applied was never updated past 018. Re-running migrate.php is NOT a no-op — it always errors."
-      - path: "migrations/022_trigger_cap_hit_ignore.sql"
-        issue: "Cannot apply on either dev or test DB; the .applied list will not advance."
-    impact: "The dev DB schema has the 020/021 tables (leaderboard_campus_legends etc.) but they were created by hand (or via a different path) — not by `php migrate.php`. The audit-fix's 022 migration ships but cannot run on either DB."
-    missing:
-      - "Restore the dev DB to a consistent state where php migrate.php is idempotent (either manually create the trigger without WHEN + mark 019-022 applied in .applied, OR fix the trigger syntax so the migration can apply)"
+    status: resolved
+    resolved_by: 8d4964c
+    resolved_at: 2026-09-05
+    resolution_note: "Same fix as MIGRATION_019_WHEN_CLAUSE_INVALID. Re-running `php migrate.php` on the test DB now reports 'Already up-to-date (0 files to apply)'. The trigger is now actually present in the DB (SHOW TRIGGERS confirms)."
   - gap_id: ON_BREAK_TRIGGER_SUBSTRATE_BROKEN
     severity: warning
     truth: "users.last_active_at is refreshed by the trigger on every positive-delta points_log INSERT (per D-03)"
-    status: partial
-    artifacts:
-      - path: "src/Support/View/partials/on_break_pill.php"
-        issue: "Correctly compares lastActiveAt against NOW() with the 14-day threshold and renders the pill only when >= 14 days. The pill is mounted in src/User/View/profile.php. BUT: the trigger that should keep users.last_active_at fresh on the gamification path cannot be installed (see MIGRATION_019_WHEN_CLAUSE_INVALID). Without the trigger, last_active_at is only updated by user_model::updateLastActive on the auth login path (via auth_service::recordLogin — wired in src/Auth/Service/auth_service.php:483-497)."
-      - path: "src/Points/Service/points_service.php"
-        issue: "Does NOT update users.last_active_at on points_log INSERTs (D-03 contract — PHP code is supposed to NOT update the column on the gamification path; the trigger is the canonical writer). With the trigger broken, last_active_at remains stale unless the user explicitly logs in. The On-Break pill will under-count activity (a user earning many points without logging in stays 'inactive')."
-    impact: "Until the migration 019 trigger is fixed, the On-Break signal depends entirely on users actually logging in via the auth path. The 14-day threshold will fire for users who trade actively without logging in (false-positive On-Break), and not fire for users who log in but don't trade (false-negative). The UI behavior is correct; the data substrate is partially broken."
-    missing:
-      - "Fix the trigger syntax (see MIGRATION_019_WHEN_CLAUSE_INVALID) — the On-Break correctness depends on it"
-      - "Alternative: have points_service explicitly update last_active_at on successful INSERTs (deviates from D-03 — the audit doc explicitly says PHP MUST NOT touch the column on the gamification path)"
+    status: resolved
+    resolved_by: 8d4964c
+    resolved_at: 2026-09-05
+    resolution_note: "Trigger is now installed and the IF() expression correctly filters out cap-hit zero-delta rows. auth login path still works via user_model::updateLastActive. MigrationLastActiveTest::test_trigger_exists and test_trigger_refreshes_last_active_at_on_points_log_insert now pass."
   - gap_id: PTS-08_SUBSTRATE
     severity: warning
     truth: "PTS-08 On-Break behavior observable end-to-end (active user gets badge, 14+ day inactive user gets grayed badge with tooltip, re-activation restores full badge)"
-    status: partial
-    artifacts:
-      - path: "src/Support/View/partials/on_break_pill.php"
-        issue: "Partial implementation. Logic correct (date diff >= 14 days, tooltip text matches EXPERIENCE.md L153). Mounted on owner Profile (src/User/View/profile.php:124). Re-activation is automatic (any update to last_active_at restores the badge). BUT the trigger that should refresh last_active_at on points_log INSERTs is broken — see ON_BREAK_TRIGGER_SUBSTRATE_BROKEN."
-    impact: "Behavior is correct in source but data substrate has the trigger gap; user-visible behavior in production depends on whether the trigger is rebuilt correctly after the audit-fix lands."
+    status: resolved
+    resolved_by: 8d4964c
+    resolved_at: 2026-09-05
+    resolution_note: "Trigger now correctly refreshes last_active_at only on positive-delta points_log inserts. The On-Break pill behavior is end-to-end correct: cap-hit zero-delta rows do not bump last_active_at (fix 2 intent preserved), real point-earning activity does, login via recordLogin also bumps it. All MigrationLastActiveTest cases pass."
+  - gap_id: CAP_HIT_ZERODELTA_TOUCHES_LAST_ACTIVE
+    severity: minor
+    truth: "Cap-hit zero-delta points_log rows do NOT refresh users.last_active_at (audit Fix 2 intent preserved)"
+    status: resolved
+    resolved_by: 8d4964c
+    resolved_at: 2026-09-05
+    resolution_note: "Verified: trigger body `IF(NEW.delta > 0, NOW(), last_active_at)` returns the existing value (no-op) when delta <= 0. Cap-hit rows for velocity_cap_hit and pair_cap_hit (both delta=0) leave last_active_at untouched, so capped-out users no longer stay 'fresh' forever."
 deferred: []
 coincidental_reliance_items: []
 behavior_unverified_items:
