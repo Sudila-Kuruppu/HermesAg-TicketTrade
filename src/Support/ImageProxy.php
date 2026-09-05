@@ -136,44 +136,39 @@ class ImageProxy
         if ($userId <= 0) {
             return false;
         }
+        // CR-04: admin check is on the VIEWER's is_admin (from
+        // $GLOBALS['current_user'] populated by Auth::boot()), not the
+        // seller's. The previous SELECT joined on listings.seller_id
+        // and read the seller's admin flag — wrong table, and any
+        // admin-seller made every viewer authorized. Also collapse
+        // 3 sequential SELECTs into 1 with OR predicates.
+        $viewer = $GLOBALS['current_user'] ?? null;
+        $viewerIsAdmin = ($viewer !== null && (int) ($viewer['user_id'] ?? 0) === $userId)
+            ? !empty($viewer['is_admin'])
+            : false;
         try {
-            // Check seller + admin in a single SELECT against listings JOIN users.
             $stmt = Db::pdo()->prepare(
-                'SELECT u.is_admin '
-                . 'FROM listings l JOIN users u ON u.user_id = l.seller_id '
-                . 'WHERE l.id = ? LIMIT 1'
+                'SELECT '
+                . 'l.seller_id AS seller_id, '
+                . 'EXISTS(SELECT 1 FROM tickets t WHERE t.listing_id = l.id '
+                . "  AND t.buyer_id = ? AND t.status IN ('active','redeemed')) AS is_ticket_holder "
+                . 'FROM listings l WHERE l.id = ? LIMIT 1'
             );
-            $stmt->execute([$listingId]);
+            $stmt->execute([$userId, $listingId]);
             $r = $stmt->fetch();
-            if ($r === false) {
-                return false;
-            }
-            $isAdmin = (bool) ($r['is_admin'] ?? false);
-
-            // Check seller.
-            $stmt = Db::pdo()->prepare('SELECT seller_id FROM listings WHERE id = ? LIMIT 1');
-            $stmt->execute([$listingId]);
-            $l = $stmt->fetch();
-            if ($l !== false && (int) $l['seller_id'] === $userId) {
-                return true;
-            }
-
-            // Check admin.
-            if ($isAdmin) {
-                return true;
-            }
-
-            // Check ticket holder (active or redeemed).
-            $stmt = Db::pdo()->prepare(
-                'SELECT COUNT(*) FROM tickets WHERE listing_id = ? AND buyer_id = ? '
-                . "AND status IN ('active','redeemed') LIMIT 1"
-            );
-            $stmt->execute([$listingId, $userId]);
-            $count = (int) $stmt->fetchColumn();
-            return $count > 0;
         } catch (\Throwable $e) {
             return false;
         }
+        if ($r === false) {
+            return false;
+        }
+        if ((int) ($r['seller_id'] ?? 0) === $userId) {
+            return true;
+        }
+        if ($viewerIsAdmin) {
+            return true;
+        }
+        return (int) ($r['is_ticket_holder'] ?? 0) === 1;
     }
 
     /**
