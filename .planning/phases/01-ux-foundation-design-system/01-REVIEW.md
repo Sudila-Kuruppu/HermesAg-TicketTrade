@@ -41,7 +41,7 @@ Overall verdict: **needs-fix**. Fix the 4 criticals and the substrate is solid.
 
 ## Critical Issues
 
-### CR-001: tickettrade.components.css violates the zero-hex-literal policy with 11 fallback literals
+### CR-001: tickettrade.components.css violates the zero-hex-literal policy with 11 fallback literals (fixed in 5503092)
 
 **Severity:** Critical
 **Location:** `public/assets/css/tickettrade.components.css:789, 810, 814, 824, 831, 836, 837, 848, 871, 879, 883`
@@ -77,7 +77,7 @@ Apply the same removal to all 11 lines. After the cleanup, re-run `vendor/bin/ph
 
 ---
 
-### CR-002: Duplicate `--paper-card-bg` declaration silently overrides the intended cream value
+### CR-002: Duplicate `--paper-card-bg` declaration silently overrides the intended cream value (fixed in 3841207)
 
 **Severity:** Critical
 **Location:** `public/assets/css/tickettrade.tokens.css:114-118`
@@ -112,7 +112,7 @@ Add a smoke test: scan `tickettrade.tokens.css` for `--paper-card-bg` and assert
 
 ---
 
-### CR-003: Admin POST endpoints (`/admin/cron/ticket-expiry`, `/admin/cron/daily`) are unreachable — registered in the wrong route map
+### CR-003: Admin POST endpoints (`/admin/cron/ticket-expiry`, `/admin/cron/daily`) are unreachable — registered in the wrong route map (fixed in 691e7dd)
 
 **Severity:** Critical
 **Location:** `config/routes.php:49-50` vs `admin/config/routes.php` (full file) vs `public/.htaccess:15` vs `public/router.php:44-47`
@@ -149,7 +149,7 @@ Then delete the two entries from `config/routes.php:49-50`. Verify by adding a s
 
 ---
 
-### CR-004: `display_errors` and cookie `secure` flag leak info when `APP_ENV` is unset
+### CR-004: `display_errors` and cookie `secure` flag leak info when `APP_ENV` is unset (fixed in 9ba303f)
 
 **Severity:** Critical
 **Location:** `config/bootstrap.php:34, 45`
@@ -189,7 +189,7 @@ Add a deploy-doc line: `APP_ENV=production` MUST be set in production, or the sa
 
 ## Warnings
 
-### WR-001: Front controllers leak exception messages to the client
+### WR-001: Front controllers leak exception messages to the client (fixed in c52d8f6)
 
 **Severity:** Warning
 **Location:** `public/index.php:21`, `public/admin/index.php:19`
@@ -217,7 +217,7 @@ Then the front-controller try/catch becomes redundant — but keep it as a last-
 
 ---
 
-### WR-002: `_tt_path_params` vs `_tt_route_params` naming mismatch in Router
+### WR-002: `_tt_path_params` vs `_tt_route_params` naming mismatch in Router (fixed in f786f1a)
 
 **Severity:** Warning
 **Location:** `src/Support/Router.php:11, 83`
@@ -239,7 +239,7 @@ Add a `grep` test that fails CI if either string is reintroduced.
 
 ---
 
-### WR-003: Placeholder regex is not anchored per-segment and matches `//` accidentally
+### WR-003: Placeholder regex is not anchored per-segment and matches `//` accidentally (fixed in 816117d)
 
 **Severity:** Warning
 **Location:** `src/Support/Router.php:57-72`
@@ -265,7 +265,7 @@ Note: `preg_quote` will escape `{` and `}` to `\{` `\}` so the placeholders rege
 
 ---
 
-### WR-004: Toast queue cap races on rapid double-show with no timer arming
+### WR-004: Toast queue cap races on rapid double-show with no timer arming (fixed in 12ba1b9)
 
 **Severity:** Warning
 **Location:** `public/assets/js/tickettrade.js:265-293`
@@ -306,7 +306,7 @@ function clearTimer(entry) {
 
 ---
 
-### WR-005: `landing.php` is missing `<noscript>` fallback the mockups have
+### WR-005: `landing.php` is missing `<noscript>` fallback the mockups have (fixed in f3f4dca)
 
 **Severity:** Warning
 **Location:** `src/Support/View/landing.php:15-23`
@@ -323,7 +323,7 @@ function clearTimer(entry) {
 
 ---
 
-### WR-006: Hex literal in `tickettrade.components.css` rgba() shadows `tokens.css` shadow color
+### WR-006: Hex literal in `tickettrade.components.css` rgba() shadows `tokens.css` shadow color (fixed in 034294c)
 
 **Severity:** Warning
 **Location:** `public/assets/css/tickettrade.components.css:469`
