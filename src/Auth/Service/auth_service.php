@@ -110,20 +110,19 @@ class auth_service
 
     /**
      * Resolve the rank tier for a given point balance.
+     *
+     * Delegates to the global tierFromPoints() defined in
+     * config/ranks.php. The function_exists guard is a belt-and-braces
+     * for the rare code path where ranks.php hasn't been required yet;
+     * the require_once then loads the function (and its $ranks array).
+     * (WR-08 — auth_service no longer carries a parallel ladder.)
      */
     public static function tierFromPoints(int $points): string
     {
-        if (function_exists('tierFromPoints')) {
-            return tierFromPoints($points);
+        if (!function_exists('tierFromPoints')) {
+            require_once APP_ROOT . '/config/ranks.php';
         }
-        $ladder = require APP_ROOT . '/config/ranks.php';
-        $current = 'E';
-        foreach ($ladder as $tier => $def) {
-            if ($points >= $def['min_points']) {
-                $current = $tier;
-            }
-        }
-        return $current;
+        return tierFromPoints($points);
     }
 
     /**
