@@ -70,8 +70,8 @@ class Auth
         try {
             $tz = new DateTimeZone('Asia/Colombo');
             $nowDt = new DateTime('now', $tz);
-            $lastSeenDt = new DateTime((string) $row['last_seen'], $tz);
-            if ($nowDt->getTimestamp() - $lastSeenDt->getTimestamp() >= 300) {
+            $lastSeenTs = self::parseLastSeenTimestamp((string) ($row['last_seen'] ?? ''));
+            if ($lastSeenTs !== null && ($nowDt->getTimestamp() - $lastSeenTs) >= 300) {
                 $u = Db::pdo()->prepare('UPDATE sessions SET last_seen = ? WHERE session_id = ?');
                 $u->execute([$nowDt->format('Y-m-d H:i:s'), $sid]);
             }
@@ -154,16 +154,29 @@ class Auth
         // last_seen is stored in Asia/Colombo wall clock (per AD-17); parse
         // with that TZ explicitly so the cutoff math matches regardless of
         // the script's default timezone (PHP CLI defaults to UTC).
-        try {
-            $lastSeenDt = new DateTime((string) $row['last_seen'], new DateTimeZone('Asia/Colombo'));
-            $lastSeenTs = $lastSeenDt->getTimestamp();
-        } catch (\Throwable $e) {
-            $lastSeenTs = false;
-        }
-        if ($lastSeenTs === false || $lastSeenTs < time() - $seconds) {
+        $lastSeenTs = self::parseLastSeenTimestamp((string) ($row['last_seen'] ?? ''));
+        if ($lastSeenTs === null || $lastSeenTs < time() - $seconds) {
             self::emitReAuthRequired();
         }
         return $u;
+    }
+
+    /**
+     * Parse a sessions.last_seen wall-clock string (Asia/Colombo) into
+     * a Unix timestamp. Returns null on empty / unparseable input.
+     * Used by both boot() (IN-02 refactor) and requireReAuth() so the
+     * TZ semantics stay in lockstep.
+     */
+    private static function parseLastSeenTimestamp(string $raw): ?int
+    {
+        if ($raw === '') {
+            return null;
+        }
+        try {
+            return (new DateTime($raw, new DateTimeZone('Asia/Colombo')))->getTimestamp();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /**
