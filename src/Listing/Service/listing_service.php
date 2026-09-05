@@ -403,6 +403,23 @@ class listing_service
         $row['images'] = listing_image_model::findByListingId($id);
         $cat = category_service::getById((int) $row['category_id']);
         $row['category'] = $cat['ok'] ? $cat['data'] : null;
+        // WR-07: populate seller_* fields so the modal can render
+        // "Sold by @nickname" without falling back to "@seller".
+        // Single-table access in the Model layer is preserved by
+        // fetching the public seller row here (Service owns the join).
+        $sellerId = (int) ($row['seller_id'] ?? 0);
+        if ($sellerId > 0) {
+            $sellerStmt = Db::pdo()->prepare(
+                'SELECT nickname, tier, is_verified FROM users WHERE user_id = ? LIMIT 1'
+            );
+            $sellerStmt->execute([$sellerId]);
+            $s = $sellerStmt->fetch();
+            if ($s !== false) {
+                $row['seller_nickname'] = (string) ($s['nickname'] ?? '');
+                $row['seller_tier'] = (string) ($s['tier'] ?? 'E');
+                $row['seller_is_verified'] = (bool) ($s['is_verified'] ?? false);
+            }
+        }
         return $row;
     }
 
