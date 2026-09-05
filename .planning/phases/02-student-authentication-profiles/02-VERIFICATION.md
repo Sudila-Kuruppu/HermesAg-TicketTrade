@@ -2,16 +2,18 @@
 phase: 02-student-authentication-profiles
 verified: 2026-09-01T10:30:00Z
 status: passed
-score: 20/20 must-haves verified (after orchestrator-applied fixups)
+score: "20/20 must-haves verified (after orchestrator-applied fixups)"
 behavior_unverified: 0
 overrides_applied: 0
 overrides: []
+schema_migrated: 2026-09-05
+schema_migration_note: "Quoted score field — original frontmatter had an unquoted string with an embedded colon which the current js-yaml FAILSAFE_SCHEMA parser rejected. No factual changes to verification results."
 patch_commits:
-  - b712906: rate-limit dedup, points tier, reset-sessions cleanup
-  - a39858c: Router::dispatch implementation (CRITICAL — was a stub)
-  - dc3fa2a: points_service.php phpcs exclusion
-  - 86817f3: phpcbf header spacing in Support classes
-  - 08d9979: phpcbf header spacing in views + admin actions
+  - "b712906: rate-limit dedup, points tier, reset-sessions cleanup"
+  - "a39858c: Router::dispatch implementation (CRITICAL — was a stub)"
+  - "dc3fa2a: points_service.php phpcs exclusion"
+  - "86817f3: phpcbf header spacing in Support classes"
+  - "08d9979: phpcbf header spacing in views + admin actions"
 
 must_haves:
   - id: 1
@@ -119,7 +121,7 @@ qa_evidence:
     result: "{'ok':false,'error':{'code':'E_CSRF','message':'CSRF token mismatch.'}} (HTTP 400)"
     status: PASS
   - test: "Bcrypt sole-writer: grep for password_hash() and password_verify() calls in src/"
-    command: "grep -rn -E '(password_hash|password_verify)\(' src/ --include='*.php'"
+    command: "grep -rn -E '(password_hash|password_verify)\\(' src/ --include='*.php'"
     result: "Only src/Auth/Service/auth_service.php (3 call sites: line 50, 58, 70) calls these functions. The sole-writer rule is satisfied."
     status: PASS
   - test: "Rate limit: 6 failed logins from same IP within 5 minutes"
@@ -129,7 +131,7 @@ qa_evidence:
     note: "Real defect. The 6th attempt should be blocked per the spec; the 3rd is blocked in practice. The cause is RateLimit::hit being called twice per request."
   - test: "Register flow: valid email/student_id/nickname/password -> 302 + Set-Cookie + flash toast with /verify?token=... link"
     command: "POST /register with valid allowlist data, then GET /board"
-    result: "302 to /board + Set-Cookie PHPSESSID; flash-toast='success' contains 'Account created. Verify your email: <a href="/verify?token=...">Click to verify</a>'. users row created (avatar_id randomized 1..12); email_verifications row created; sessions row created (auto-logged-in)."
+    result: "302 to /board + Set-Cookie PHPSESSID; flash-toast=success contains 'Account created. Verify your email: <verify-link>'. users row created (avatar_id randomized 1..12); email_verifications row created; sessions row created (auto-logged-in)."
     status: PASS
   - test: "Register anti-enumeration: email not in allowlist, student_id not in allowlist, email already registered"
     command: "Three POST /register attempts with each scenario"

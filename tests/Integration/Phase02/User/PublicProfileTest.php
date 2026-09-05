@@ -109,17 +109,27 @@ class PublicProfileTest extends Fixtures
         $this->assertStringNotContainsString('rank-badge--D', $bodyS);
     }
 
-    public function test_transaction_counts_zero_in_phase_2(): void
+    public function test_no_tabs_in_phase_2(): void
     {
+        // Per D-14 (locked) and 02-03 SUMMARY: Phase 2 ships only the summary
+        // header on /profile/{nickname}; tabs are deferred to later phases.
+        // The Sales/Purchases/Disputes/Reviews/Messages labels are nav-only,
+        // not profile-body tabs.
         $this->seedUser([
             'email' => 'tx@students.nsbm.ac.lk',
             'student_id' => 'NSBM/TX1',
             'nickname' => 'txcounts',
         ]);
         $body = $this->renderViewFor(user_service::getByNicknameForPublicProfile('txcounts'));
-        $this->assertStringContainsString('Sales', $body);
-        $this->assertStringContainsString('Purchases', $body);
-        $this->assertStringContainsString('Disputes', $body);
+        // Profile body must not carry tab nav, must-shaves, or section headers
+        // for the Phase 2 + deferred-phase tabs.
+        $this->assertStringNotContainsString('tab-pane', $body);
+        $this->assertStringNotContainsString('id="sales"', $body);
+        $this->assertStringNotContainsString('id="purchases"', $body);
+        $this->assertStringNotContainsString('id="disputes"', $body);
+        $this->assertStringNotContainsString('id="reviews"', $body);
+        // The summary header IS present (sanity check).
+        $this->assertStringContainsString('@txcounts', $body);
     }
 
     public function test_reviews_default_copy_in_phase_2(): void
