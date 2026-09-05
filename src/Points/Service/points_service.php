@@ -392,9 +392,18 @@ class points_service
                 $upd->execute([$newSellerPoints, $newSellerTier, $sellerId]);
             }
 
-            if ($referenceType === 'final_session' && ($awardBuyer || $awardSeller)) {
+            if ($referenceType === 'final_session') {
+                // WR-03 fix: increment redeemed_count for both parties
+                // regardless of the points outcome. redeemed_count is
+                // a per-redemption semantic, not a per-points-credited
+                // semantic — a frozen or capped user who redeems a
+                // ticket still counts as having redeemed once, so the
+                // FR-PTS-007 halving advances correctly on the next
+                // redemption. Audit-logged so the bumped counter is
+                // traceable.
                 $inc = $pdo->prepare(
-                    'UPDATE users SET redeemed_count = redeemed_count + 1 WHERE user_id IN (?, ?)'
+                    'UPDATE users SET redeemed_count = redeemed_count + 1 '
+                    . 'WHERE user_id IN (?, ?)'
                 );
                 $inc->execute([$buyerId, $sellerId]);
             }
