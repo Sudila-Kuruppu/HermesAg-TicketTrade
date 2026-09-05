@@ -34,10 +34,21 @@ CREATE INDEX IF NOT EXISTS idx_users_last_active ON users (last_active_at);
 -- shape; the single-statement trigger body (no BEGIN/END block) keeps
 -- the migration compatible with the `;`-splitting runner.
 --
--- The WHEN (NEW.delta > 0) clause is critical: anti-fraud cap-hit rows
--- (velocity_cap_hit, pair_cap_hit) are zero-delta and MUST NOT refresh
--- last_active_at, otherwise a capped-out user spamming hundreds of
--- suppressed events per day would stay "fresh" forever and the 14-day
--- on-break pill (PTS-08) would never trigger for them.
+-- Anti-fraud cap-hit rows (velocity_cap_hit, pair_cap_hit) are zero-
+-- delta and MUST NOT refresh last_active_at, otherwise a capped-out
+-- user spamming hundreds of suppressed events per day would stay
+-- "fresh" forever and the 14-day on-break pill (PTS-08) would never
+-- trigger for them. Implementation: inline IF() expression that
+-- returns NOW() when NEW.delta > 0 and the existing last_active_at
+-- otherwise. Single statement, no compound block, no DELIMITER
+-- change.
+--
+-- The earlier WHEN (NEW.delta > 0) clause attempt (commit 6bf4312)
+-- was rejected by MariaDB 11.4.5 with `ERROR 1064 ... near 'WHEN
+-- (NEW.delta > 0) UPDATE users ...'`. MariaDB does not support a
+-- standalone WHEN predicate in a CREATE TRIGGER body that is itself
+-- an UPDATE statement; the IF() expression keeps the same
+-- zero-delta suppression semantics while staying a single DDL
+-- statement the `;`-splitter can run.
 DROP TRIGGER IF EXISTS trg_points_log_refresh_last_active;
-CREATE TRIGGER trg_points_log_refresh_last_active BEFORE INSERT ON points_log FOR EACH ROW WHEN (NEW.delta > 0) UPDATE users SET last_active_at = NOW() WHERE user_id = NEW.user_id;
+CREATE TRIGGER trg_points_log_refresh_last_active BEFORE INSERT ON points_log FOR EACH ROW UPDATE users SET last_active_at = IF(NEW.delta > 0, NOW(), last_active_at) WHERE user_id = NEW.user_id;
