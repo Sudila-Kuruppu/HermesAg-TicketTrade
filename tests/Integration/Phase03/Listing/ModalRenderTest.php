@@ -171,6 +171,49 @@ class ModalRenderTest extends Fixtures
         return (array) $stmt->fetch();
     }
 
+    public function test_buy_confirm_modal_rendered_with_scrim_guard_and_submit_target(): void
+    {
+        // Phase 4 Plan 04-02 ROADMAP #1: Buy Now opens a Bootstrap
+        // confirmation modal (data-scrim-guard="2" suppresses backdrop
+        // for 2s). The Confirm button targets the buy form by data-buy-form-id;
+        // JS in tickettrade.js (ComponentRegistry.register('buyConfirmModal'))
+        // submits it. We assert the HTML contract; the JS contract is a
+        // data-attribute wiring covered by manual verification per
+        // EXPERIENCE.md.
+        $sellerId = $this->seedUser();
+        $catId = $this->seedCategory();
+        $lid = $this->seedListing($sellerId, $catId, 'Item');
+        $buyerId = $this->seedUser([
+            'email' => 'buyer@students.nsbm.ac.lk',
+            'student_id' => 'NSBM/2023/099',
+            'nickname' => 'buyer',
+        ]);
+
+        $out = $this->renderBoardAsUser($buyerId);
+        // The button opens the modal (Bootstrap toggle)
+        $this->assertStringContainsString('data-bs-toggle="modal"', $out);
+        $this->assertStringContainsString('data-bs-target="#buy-confirm-modal-' . $lid . '"', $out);
+        // The confirmation modal carries data-scrim-guard="2" (reuses the
+        // Phase 1 modalScrimGuard pattern — no new scrim handler).
+        $this->assertStringContainsString('id="buy-confirm-modal-' . $lid . '"', $out);
+        $this->assertMatchesRegularExpression(
+            '/id="buy-confirm-modal-' . $lid . '"[^>]*data-scrim-guard="2"/',
+            $out
+        );
+        // Spec copy
+        $this->assertStringContainsString('Confirm purchase?', $out);
+        $this->assertStringContainsString(
+            'This reserves the item with a digital ticket',
+            $out
+        );
+        $this->assertStringContainsString('(a reservation, not payment).', $out);
+        // The Confirm button references the underlying form id so JS can
+        // .submit() it on click.
+        $this->assertStringContainsString('data-action="buy-confirm"', $out);
+        $this->assertStringContainsString('data-buy-form-id="buy-form-' . $lid . '"', $out);
+        $this->assertStringContainsString('id="buy-form-' . $lid . '"', $out);
+    }
+
     public function test_modal_includes_report_link(): void
     {
         $sellerId = $this->seedUser();

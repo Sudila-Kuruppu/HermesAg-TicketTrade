@@ -692,6 +692,24 @@
   });
 
   // ---------------------------------------------------------------------------
+  // buyConfirmModal — Phase 4 Plan 04-02 ROADMAP #1. The Buy Now button
+  // opens a Bootstrap confirmation modal (data-scrim-guard="2" handled by
+  // modalScrimGuard above). On Confirm click, submit the underlying
+  // form referenced by data-buy-form-id. No new scrim handler — reuse.
+  // ---------------------------------------------------------------------------
+  ComponentRegistry.register('buyConfirmModal', function () {
+    var triggers = document.querySelectorAll('[data-action="buy-confirm"]');
+    triggers.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var formId = btn.getAttribute('data-buy-form-id');
+        if (!formId) return;
+        var form = document.getElementById(formId);
+        if (form) form.submit();
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // DOMContentLoaded: init all components
   // ---------------------------------------------------------------------------
   if (document.readyState === 'loading') {

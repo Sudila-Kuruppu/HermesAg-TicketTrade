@@ -144,13 +144,57 @@ $csrfToken = (string) ($__vars['csrf_token'] ?? \App\Support\Csrf::token());
                     Out of stock
                   </span>
                 <?php else : ?>
-                  <!-- Logged-in buyer, not own listing, in stock: real Buy now POST -->
-                  <form method="POST" action="/listings/<?= (int) $listingId ?>/buy" class="listing-modal__buy-form">
+                  <!-- Logged-in buyer, not own listing, in stock: real Buy now POST.
+                       Phase 4 Plan 04-02 ROADMAP #1: the button opens a Bootstrap
+                       confirmation modal (data-scrim-guard="2" suppresses backdrop
+                       click for 2s). The Confirm button submits the underlying
+                       form via JS (form id="buy-form-{id}"). The form keeps
+                       its method/action/inputs so BuyAction::handlePost is
+                       unchanged — only the user-facing flow gains a confirm step. -->
+                  <form id="buy-form-<?= (int) $listingId ?>" method="POST" action="/listings/<?= (int) $listingId ?>/buy" class="listing-modal__buy-form">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="submit" class="btn btn-primary listing-modal__buy">
+                    <button type="button"
+                            class="btn btn-primary listing-modal__buy"
+                            data-bs-toggle="modal"
+                            data-bs-target="#buy-confirm-modal-<?= (int) $listingId ?>"
+                            data-action="buy-now">
                       Buy now
                     </button>
                   </form>
+                  <div class="modal fade buy-confirm-modal"
+                       id="buy-confirm-modal-<?= (int) $listingId ?>"
+                       tabindex="-1"
+                       aria-labelledby="buy-confirm-title-<?= (int) $listingId ?>"
+                       aria-hidden="true"
+                       data-scrim-guard="2"
+                       data-component="buy-confirm-modal"
+                       data-buy-form-id="buy-form-<?= (int) $listingId ?>">
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h2 class="modal-title h5 mb-0" id="buy-confirm-title-<?= (int) $listingId ?>">
+                            Confirm purchase?
+                          </h2>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                          <p class="mb-0">
+                            This reserves the item with a digital ticket
+                            (a reservation, not payment).
+                          </p>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                          <button type="button"
+                                  class="btn btn-primary"
+                                  data-action="buy-confirm"
+                                  data-buy-form-id="buy-form-<?= (int) $listingId ?>">
+                            Confirm
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 <?php endif; ?>
                 <a href="/listings/<?= (int) $listingId ?>/report"
                    class="btn btn-link listing-modal__report">Report</a>
