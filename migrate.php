@@ -90,12 +90,15 @@ foreach ($pending as $file) {
     }
     // Strip /* ... */ block comments
     $sql = preg_replace('#/\*.*?\*/#s', '', $sql);
-    // Strip -- line comments (must not be inside strings; per D-27 we
-    // forbid ; inside string literals)
+    // Strip -- line comments. Anchor on whitespace or line start so we
+    // don't break string content like 'foo --bar' (the previous regex
+    // would strip the trailing "--bar" and the closing quote). Per
+    // D-27 we also forbid ; inside string literals; combining that
+    // with this anchor rule keeps statement splitting safe.
     $lines = explode("\n", $sql);
     $cleaned = [];
     foreach ($lines as $line) {
-        $stripped = preg_replace('/--.*$/', '', $line);
+        $stripped = preg_replace('/(^|\s)--.*$/', '$1', $line);
         $cleaned[] = $stripped;
     }
     $sql = implode("\n", $cleaned);
