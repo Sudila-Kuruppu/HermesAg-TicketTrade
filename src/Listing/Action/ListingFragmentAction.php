@@ -91,18 +91,9 @@ class ListingFragmentAction
             }
         }
 
-        // Render via output buffering so we can emit it as JSON.
-        $vars = [
-            'listing_id' => $id,
-            'title' => (string) $withImages['title'],
-            'images' => $carouselImages,
-            'id_prefix' => 'listingModalCarouselAjax' . $id,
-        ];
-        $GLOBALS['_tt_view_vars'] = $vars;
-        ob_start();
-        require __DIR__ . '/../../Support/View/partials/listing_modal_carousel.php';
-        $carouselHtml = (string) ob_get_clean();
-
+        // Compute user-facing strings once (WR-08: pick a single source of
+        // truth; the JSON envelope and the carousel must use the same
+        // string for the same field).
         $priceCents = (int) ($withImages['price_cents'] ?? 0);
         $priceStr = number_format($priceCents / 100, 2);
         $titleStr = (string) ($withImages['title'] ?? '');
@@ -110,6 +101,18 @@ class ListingFragmentAction
         $nickname = (string) ($withImages['seller_nickname'] ?? 'seller');
         $tier = (string) ($withImages['seller_tier'] ?? 'E');
         $verified = !empty($withImages['seller_is_verified']);
+
+        // Render via output buffering so we can emit it as JSON.
+        $vars = [
+            'listing_id' => $id,
+            'title' => $titleStr,
+            'images' => $carouselImages,
+            'id_prefix' => 'listingModalCarouselAjax' . $id,
+        ];
+        $GLOBALS['_tt_view_vars'] = $vars;
+        ob_start();
+        require __DIR__ . '/../../Support/View/partials/listing_modal_carousel.php';
+        $carouselHtml = (string) ob_get_clean();
 
         $html = '<div class="listing-modal__carousel-wrap" data-listing-id="'
             . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . '">'
