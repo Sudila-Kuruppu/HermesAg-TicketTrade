@@ -475,9 +475,15 @@ class auth_service
             // schema missing or duplicate session_id; do not abort.
         }
         $GLOBALS['current_user'] = $user;
-        // Force Auth::boot() to re-read on the next request (we just
-        // mutated the session cookie; Support\Auth::boot will read it
-        // and look up the sessions row normally on the next request).
+        // The next request will re-read current_user via Support\Auth::boot()
+        // (which runs at every bootstrap and looks up the sessions row by
+        // the regenerated session cookie). For the CURRENT request the
+        // $user row is identical to what boot() already loaded from the
+        // old session — the assignment above is a defensive refresh, not
+        // a signal to anyone. The trailing comment is intentionally
+        // minimal; IN-04's original 'force Auth::boot() to re-read' note
+        // was misleading because boot() runs once per request, not on
+        // demand.
     }
 
     /**
