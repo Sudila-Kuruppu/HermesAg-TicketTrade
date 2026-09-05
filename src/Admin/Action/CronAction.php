@@ -245,7 +245,16 @@ class CronAction
         }
 
         // Sweep 4: cron_log row.
-        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'] + count($cacheFiles);
+        //
+        // processed_count is the sum of actual rows-touched (leaderboard
+        // summary rows inserted + streak recompute users processed).
+        // The 4 cache writes happen unconditionally (cache files are
+        // always re-written on each run) so they are NOT counted —
+        // counting them inflated the metric by 4 every run, masking
+        // the real "rows actually changed" signal on ops dashboards.
+        // The cache-write count is still surfaced in the response
+        // envelope below for observability.
+        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'];
         try {
             $stmt = $pdo->prepare(
                 'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '

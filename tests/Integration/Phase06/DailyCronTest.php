@@ -149,7 +149,11 @@ class DailyCronTest extends Fixtures
         $streakResult = user_service::recomputeStreakDisplay($this->pdo);
         leaderboard_service::writeJsonCache($this->pdo, $this->cacheDir);
 
-        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'] + 4;
+        // WR-03 fix: processed_count is rows-touched only (leaderboard
+        // summary rows + streak recompute users). Cache writes happen
+        // unconditionally and are NOT counted (4 cache files would
+        // inflate the metric by 4 every run).
+        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'];
         $this->pdo->prepare(
             'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '
             . 'VALUES (?, NOW(), ?, ?, NULL, NOW())'
@@ -160,6 +164,8 @@ class DailyCronTest extends Fixtures
         )->fetch();
         $this->assertNotFalse($row);
         $this->assertSame('daily', $row['job_name']);
+        // Empty leaderboard tables + 1 streak-processed user → 0 + 1 = 1.
+        $this->assertSame(1, (int) $row['processed_count']);
     }
 
     public function test_recompute_is_idempotent_within_a_day(): void
@@ -320,6 +326,67 @@ class DailyCronTest extends Fixtures
         );
         $row->execute([$user, $today]);
         $this->assertSame(0, (int) $row->fetchColumn(), 'no login_streaks row for today');
+    }
+
+    /**
+     * WR-03 regression: cron_log.processed_count must reflect actual
+     * rows-touched, not include the 4 cache files (which are written
+     * unconditionally on every run). Empty leaderboard tables + no
+     * sessions → processed_count must be 0, NOT 4 (the prior
+     * inflated count).
+     */
+    public function test_daily_cron_processed_count_reflects_actual_refreshes(): void
+    {
+        // Empty everything: no users, no leaderboard rows, no sessions.
+        // Run the sweeps like CronAction does.
+        $refreshCounts = leaderboard_service::refreshAll($this->pdo);
+        $streakResult = user_service::recomputeStreakDisplay($this->pdo);
+        $cacheFiles = leaderboard_service::writeJsonCache($this->pdo, $this->cacheDir);
+
+        // Cache always writes 4 files regardless of source data.
+        $this->assertCount(4, $cacheFiles);
+
+        // The fix: processed_count excludes the cache file count.
+        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'];
+
+        $this->pdo->prepare(
+            'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '
+            . 'VALUES (?, NOW(), ?, ?, NULL, NOW())'
+        )->execute(['daily', $processedTotal, json_encode([])]);
+
+        $row = $this->pdo->query(
+            "SELECT processed_count FROM cron_log WHERE job_name = 'daily' ORDER BY id DESC LIMIT 1"
+        )->fetch();
+        $this->assertNotFalse($row);
+        $this->assertSame(0, (int) $row['processed_count'], 'empty DB → processed_count must be 0, not 4');
+    }
+
+    /**
+     * WR-03 boundary: with one streak-processed user and an empty
+     * leaderboard, processed_count is 1 (the streak), not 5 (which
+     * would mean cache files were still counted).
+     */
+    public function test_daily_cron_processed_count_with_one_streak_user(): void
+    {
+        $user = $this->seedUser(['nickname' => 'one_streaker']);
+        $this->seedSessionFor($user);
+
+        $refreshCounts = leaderboard_service::refreshAll($this->pdo);
+        $streakResult = user_service::recomputeStreakDisplay($this->pdo);
+        leaderboard_service::writeJsonCache($this->pdo, $this->cacheDir);
+
+        $processedTotal = array_sum($refreshCounts) + $streakResult['processed'];
+        $this->pdo->prepare(
+            'INSERT INTO cron_log (job_name, run_at, processed_count, errors_json, actor_user_id, created_at) '
+            . 'VALUES (?, NOW(), ?, ?, NULL, NOW())'
+        )->execute(['daily', $processedTotal, json_encode([])]);
+
+        $row = $this->pdo->query(
+            "SELECT processed_count FROM cron_log WHERE job_name = 'daily' ORDER BY id DESC LIMIT 1"
+        )->fetch();
+        $this->assertNotFalse($row);
+        // 0 leaderboard + 1 streak user = 1.
+        $this->assertSame(1, (int) $row['processed_count'], 'one streak user → processed_count = 1, not 5');
     }
 
     /**
