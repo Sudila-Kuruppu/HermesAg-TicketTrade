@@ -91,7 +91,10 @@ if ($firstListing !== null) {
         <?php
         if ($hasFilters) {
             $title = 'No matches';
-            $body = 'No matches for "' . ($q ?? '') . '" in ' . $activeCatName;
+            // CR-03: escape both the user-supplied query and the
+            // category name (defense-in-depth) before echoing.
+            $body = 'No matches for "' . htmlspecialchars((string) ($q ?? ''), ENT_QUOTES, 'UTF-8')
+                . '" in ' . htmlspecialchars($activeCatName, ENT_QUOTES, 'UTF-8');
         } else {
             $title = 'No listings yet - check back soon';
             $body = 'New listings appear here within 24 hours of submission';
