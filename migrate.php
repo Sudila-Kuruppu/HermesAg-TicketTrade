@@ -48,6 +48,27 @@ try {
 $migrationsDir = APP_ROOT . '/migrations';
 $appliedFile = $migrationsDir . '/.applied';
 
+// Acquire an exclusive lock on the .applied file so two concurrent
+// 'php migrate.php' invocations don't read the same set, both apply
+// the same migrations, and race on the tempnam+rename write. The
+// current DDL is IF NOT EXISTS so a double-apply is safe today, but
+// any future non-idempotent migration (a seed INSERT) would double-
+// execute without this guard. (WR-05)
+$lockFh = fopen($appliedFile . '.lock', 'c');
+if ($lockFh === false || !flock($lockFh, LOCK_EX)) {
+    fwrite(STDERR, "[migrate] Could not acquire lock on {$appliedFile}.lock\n");
+    exit(1);
+}
+// Release on every exit (including the inline exit(0)/exit(1) paths
+// below). register_shutdown_function is the simplest hook that fires
+// regardless of how the script terminates.
+register_shutdown_function(static function () use ($lockFh): void {
+    if (is_resource($lockFh)) {
+        flock($lockFh, LOCK_UN);
+        fclose($lockFh);
+    }
+});
+
 // Read .applied (one filename per line)
 $applied = [];
 if (is_file($appliedFile)) {
