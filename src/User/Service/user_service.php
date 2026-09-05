@@ -331,40 +331,76 @@ class user_service
 
             foreach ($userIds as $row) {
                 $userId = (int) $row['user_id'];
-                $insertStmt->execute([$userId, $today]);
 
-                // Compute the consecutive-day count: scan backward from
-                // today and count how many distinct login_date rows are
-                // contiguous. A break in the chain resets the count to 1.
-                $consecutive = self::consecutiveLoginDays($pdo, $userId, $today);
+                // Wrap the per-user UPSERT + UPDATE in a transaction.
+                // Without this, a crash between the login_streaks UPSERT
+                // (line 334 below) and the users.current_streak UPDATE
+                // (line 345 below) leaves the user with a today's
+                // login_streaks row but stale denormalized streak count
+                // on users — Streak Kings reads from users per the
+                // denormalization contract (06-CONTEXT.md D-01). The
+                // audit docstring flagged this as m6 and marked it
+                // Phase-9 deferred; this fix moves it forward per the
+                // 06-REVIEW WR-01 expectation.
+                //
+                // awardStreakBonus() participates in the outer
+                // transaction via its ownsTransaction pattern
+                // (simpleAward in points_service honors
+                // !$pdo->inTransaction()), so the bonus INSERT +
+                // users.points UPDATE also commit/rollback atomically
+                // with the login_streaks row.
+                $userOk = true;
+                try {
+                    $pdo->beginTransaction();
+                    $insertStmt->execute([$userId, $today]);
 
-                $longestStmt->execute([$userId]);
-                $prevLongest = (int) $longestStmt->fetchColumn();
-                $newLongest = max($prevLongest, $consecutive);
+                    // Compute the consecutive-day count: scan backward from
+                    // today and count how many distinct login_date rows are
+                    // contiguous. A break in the chain resets the count to 1.
+                    $consecutive = self::consecutiveLoginDays($pdo, $userId, $today);
 
-                $updateUserStmt->execute([$consecutive, $newLongest, $userId]);
-                $processed++;
+                    $longestStmt->execute([$userId]);
+                    $prevLongest = (int) $longestStmt->fetchColumn();
+                    $newLongest = max($prevLongest, $consecutive);
 
-                // Award the streak bonus at thresholds. The bonus is a
-                // lifetime milestone (FR-PTS-001 rows 7-8), so the
-                // points_log existence check below is what guarantees
-                // no duplicate bonus on re-runs. Without this guard,
-                // a manual /admin/cron/daily trigger after the auto-run
-                // would re-award +15 / +50 for the same crossing.
-                if ($consecutive === 7 || $consecutive === 30) {
-                    $refType = $consecutive === 7 ? 'streak_7day' : 'streak_30day';
-                    $bonusAwardedStmt->execute([$userId, $refType]);
-                    if ((int) $bonusAwardedStmt->fetchColumn() > 0) {
-                        continue; // already awarded; lifetime milestone
+                    $updateUserStmt->execute([$consecutive, $newLongest, $userId]);
+                    $processed++;
+
+                    // Award the streak bonus at thresholds. The bonus is a
+                    // lifetime milestone (FR-PTS-001 rows 7-8), so the
+                    // points_log existence check below is what guarantees
+                    // no duplicate bonus on re-runs. Without this guard,
+                    // a manual /admin/cron/daily trigger after the auto-run
+                    // would re-award +15 / +50 for the same crossing.
+                    if ($consecutive === 7 || $consecutive === 30) {
+                        $refType = $consecutive === 7 ? 'streak_7day' : 'streak_30day';
+                        $bonusAwardedStmt->execute([$userId, $refType]);
+                        if ((int) $bonusAwardedStmt->fetchColumn() > 0) {
+                            $pdo->commit();
+                            continue; // already awarded; lifetime milestone
+                        }
+                        $res = points_service::awardStreakBonus($userId, $consecutive);
+                        if (($res['ok'] ?? false) === true && !empty($res['data']['delta'])) {
+                            $awards[] = [
+                                'user_id' => $userId,
+                                'streak_days' => $consecutive,
+                                'delta' => (int) $res['data']['delta'],
+                            ];
+                        }
                     }
-                    $res = points_service::awardStreakBonus($userId, $consecutive);
-                    if (($res['ok'] ?? false) === true && !empty($res['data']['delta'])) {
-                        $awards[] = [
-                            'user_id' => $userId,
-                            'streak_days' => $consecutive,
-                            'delta' => (int) $res['data']['delta'],
-                        ];
+                    $pdo->commit();
+                } catch (\Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
                     }
+                    $userOk = false;
+                    error_log(
+                        '[user_service::recomputeStreakDisplay] user_id=' . $userId
+                        . ' ' . $e->getMessage()
+                    );
+                }
+                if (!$userOk) {
+                    continue; // this user failed; move to the next
                 }
             }
         } catch (\Throwable $e) {
