@@ -272,9 +272,12 @@ class user_service
      *
      * Idempotency: re-running on the same day produces the same end
      * state. The login_streaks UPSERT uses ON DUPLICATE KEY UPDATE so
-     * a re-run never duplicates a row; the streak bonuses are written
-     * through points_service which short-circuits on points_frozen=TRUE
-     * and rejects non-7/30 values via E_VALIDATION.
+     * a re-run never duplicates a row; the streak bonus is gated by
+     * a `points_log` existence check (`streak_7day` / `streak_30day`
+     * already awarded for this user) so re-running the cron — or
+     * firing the manual trigger after the auto-run — never duplicates
+     * the bonus. The streak bonus is a lifetime milestone, not
+     * per-crossing.
      *
      * @return array{processed:int, awards: array<int, array{user_id:int, streak_days:int, delta:int}>}
      */
@@ -303,6 +306,12 @@ class user_service
                 'UPDATE users SET current_streak = ?, longest_streak = ?, updated_at = NOW() '
                 . 'WHERE user_id = ?'
             );
+            $longestStmt = $pdo->prepare(
+                'SELECT longest_streak FROM users WHERE user_id = ?'
+            );
+            $bonusAwardedStmt = $pdo->prepare(
+                'SELECT COUNT(*) FROM points_log WHERE user_id = ? AND reference_type = ?'
+            );
 
             foreach ($userIds as $row) {
                 $userId = (int) $row['user_id'];
@@ -313,20 +322,25 @@ class user_service
                 // contiguous. A break in the chain resets the count to 1.
                 $consecutive = self::consecutiveLoginDays($pdo, $userId, $today);
 
-                $prevLongest = (int) $pdo->query(
-                    'SELECT longest_streak FROM users WHERE user_id = ' . (int) $userId
-                )->fetchColumn();
+                $longestStmt->execute([$userId]);
+                $prevLongest = (int) $longestStmt->fetchColumn();
                 $newLongest = max($prevLongest, $consecutive);
 
                 $updateUserStmt->execute([$consecutive, $newLongest, $userId]);
                 $processed++;
 
-                // Award the streak bonus at thresholds. Awarded once per
-                // crossing — points_service is the sole writer of
-                // points_log, so a duplicate call writes a duplicate row
-                // (acceptable audit-trail cost; the threshold re-check
-                // happens at every cron run).
+                // Award the streak bonus at thresholds. The bonus is a
+                // lifetime milestone (FR-PTS-001 rows 7-8), so the
+                // points_log existence check below is what guarantees
+                // no duplicate bonus on re-runs. Without this guard,
+                // a manual /admin/cron/daily trigger after the auto-run
+                // would re-award +15 / +50 for the same crossing.
                 if ($consecutive === 7 || $consecutive === 30) {
+                    $refType = $consecutive === 7 ? 'streak_7day' : 'streak_30day';
+                    $bonusAwardedStmt->execute([$userId, $refType]);
+                    if ((int) $bonusAwardedStmt->fetchColumn() > 0) {
+                        continue; // already awarded; lifetime milestone
+                    }
                     $res = points_service::awardStreakBonus($userId, $consecutive);
                     if (($res['ok'] ?? false) === true && !empty($res['data']['delta'])) {
                         $awards[] = [
