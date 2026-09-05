@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Marketplace Listings & Discovery** — Listings CRUD + state machine, corkboard board, landing page, image storage outside webroot (completed 2026-09-01)
 - [x] **Phase 4: Purchases, Tickets & Lifecycle** — Buy Now, ticket generation, redemption, 7-day expiry, disputes, per-session service handover
 - [x] **Phase 5: Reviews & Ratings** — Post-redemption reviews, public profile aggregation, dispute count (completed 2026-09-03)
-- [ ] **Phase 6: Points, Ranks & Leaderboards** — Points engine, 6-tier ladder, daily leaderboards, anti-farming rules
+- [x] **Phase 6: Points, Ranks & Leaderboards** — Points engine, 6-tier ladder, daily leaderboards, anti-farming rules (completed 2026-09-04)
 - [ ] **Phase 7: Reports, Disputes & Moderation Workflow** — User reports, admin queue, destructive actions with re-auth
 - [ ] **Phase 8: Admin Console, Audit & Analytics** — User mgmt, listings approval queue, audit log, analytics, admin re-auth primitive
 - [ ] **Phase 9: Operational Substrate** — Migrations, cron jobs, security headers, compliance docs, phpcs sniff
@@ -207,9 +207,9 @@ Plans:
 
 Plans:
 
-- [ ] 06-01: Points engine + ranks — `Points/Service/points_service.php` (the only writer per AD-10), `Points/Model/points_log_model.php`, `config/ranks.php`, migration 005 (leaderboard summary tables), migration 006 (login_streaks)
-- [ ] 06-02: Velocity, multiplier, anti-farming — velocity check (>300/day, >150/hr) at insert time, FR-PTS-007 multiplier on first-5 counted transactions, FR-PTS-006 pair cap, void/approve Actions for admin (used in Phase 8); admin flag badge (UX-DR-16) wired to user list
-- [ ] 06-03: Leaderboards + tier progress UI — `/leaderboards` View with four boards, tier progress bar on Profile, "On Break" pill (UX-DR-17) on rank badge, hand-triggered `POST /admin/cron/daily` Action extending Phase 3's cron
+- [x] 06-01: Points engine + ranks — `Points/Service/points_service.php` (the only writer per AD-10), `Points/Model/points_log_model.php`, `config/ranks.php`, migration 005 (leaderboard summary tables), migration 006 (login_streaks)
+- [x] 06-02: Velocity, multiplier, anti-farming — velocity check (>300/day, >150/hr) at insert time, FR-PTS-007 multiplier on first-5 counted transactions, FR-PTS-006 pair cap, void/approve Actions for admin (used in Phase 8); admin flag badge (UX-DR-16) wired to user list
+- [x] 06-03: Leaderboards + tier progress UI — `/leaderboards` View with four boards, tier progress bar on Profile, "On Break" pill (UX-DR-17) on rank badge, hand-triggered `POST /admin/cron/daily` Action extending Phase 3's cron
 
 ---
 
