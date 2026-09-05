@@ -81,6 +81,40 @@ class TicketExpiryTest extends Fixtures
         $this->assertSame('active', $row['status'], 'listing restored from sold to active');
     }
 
+    public function testZeroSoldListingDoesNotUnderflowOnExpiry(): void
+    {
+        // WR-05 fix: when quantity_sold is already 0 (already at
+        // zero), the expiry sweep must not under-count or otherwise
+        // mutate the listing row. The CR-04 fix added
+        // `quantity_sold >= ?` to the decrement WHERE clause; this
+        // test asserts the no-op when that guard fires.
+        $seller = $this->seedUser();
+        $buyer = $this->seedUser();
+        $adminId = $this->seedAdminUser();
+        $catId = $this->firstCategoryId();
+
+        // Listing already at quantity_sold=0, status='active'.
+        // The expired ticket's decrement must NOT push the value
+        // negative or alter status.
+        $listingId = $this->seedListing($seller, $catId, [
+            'status' => 'active',
+            'quantity' => 5,
+            'quantity_sold' => 0,
+        ]);
+        $ticketId = $this->seedExpiredTicket($listingId, $buyer, $seller, hoursAgo: 1);
+
+        $payload = $this->dispatchCron($adminId);
+        $this->assertSame(200, $payload['status']);
+        $this->assertSame(1, (int) $payload['body']['sweeps']['ticket_expiry']['processed']);
+
+        $row = $this->pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetch();
+        $this->assertSame('expired', $row['status']);
+
+        $row = $this->pdo->query("SELECT quantity_sold, status FROM listings WHERE id = $listingId")->fetch();
+        $this->assertSame(0, (int) $row['quantity_sold'], 'quantity_sold stays at 0 (no underflow)');
+        $this->assertSame('active', $row['status']);
+    }
+
     public function testServiceTicketDecrementsByRemainingSessions(): void
     {
         $seller = $this->seedUser();
