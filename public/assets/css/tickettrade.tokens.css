@@ -94,6 +94,7 @@
   --color-outline-variant: #E0E0E0;
   --color-border-hairline: #EEEEEE;
   --color-shadow-color: rgba(0, 0, 0, 0.12);
+  --color-rank-a-shadow: rgba(198, 40, 40, 0.35);
 
   /* ---------- Colors - Corkboard ---------- */
   --color-cork-base: #C8A878;
@@ -251,6 +252,7 @@
   --color-outline-variant: #424242;
   --color-border-hairline: #2A2A2A;
   --color-shadow-color: rgba(0, 0, 0, 0.5);
+  --color-rank-a-shadow: rgba(239, 83, 80, 0.35);
 
   /* Corkboard / code / velocity tokens stay the same in both themes
      because they are decorative surfaces or content surfaces */

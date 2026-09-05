@@ -466,7 +466,7 @@
 }
 .reduce-motion .legend-glow::after,
 @media (prefers-reduced-motion: reduce) {
-  .legend-glow::after { animation: none; box-shadow: 0 0 12px rgba(198, 40, 40, 0.35); }
+  .legend-glow::after { animation: none; box-shadow: 0 0 12px var(--color-rank-a-shadow); }
 }
 
 /* ----- Tier progress bar (Phase 6 Plan 06-01) -----
@@ -731,7 +731,7 @@
 /* ----- Review card (Phase 5 Plan 05-02) ----- */
 .review-card {
   background: var(--color-surface-container-low);
-  border: 1px solid var(--color-border-hairline, rgba(0, 0, 0, 0.08));
+  border: 1px solid var(--color-border-hairline);
   border-radius: var(--shape-md, 8px);
   padding: var(--space-3) var(--space-4);
 }
@@ -804,7 +804,7 @@
   border-radius: var(--shape-md, 8px);
 }
 .leaderboard-row + .leaderboard-row {
-  border-top: 1px solid var(--color-border-hairline, rgba(0, 0, 0, 0.06));
+  border-top: 1px solid var(--color-border-hairline);
 }
 .leaderboard-row:hover {
   background: var(--color-surface-container);
@@ -857,9 +857,9 @@
 .recent-activity-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 0.5rem);
-  padding: var(--space-2, 0.5rem) 0;
-  border-top: 1px solid var(--color-border-hairline, rgba(0, 0, 0, 0.06));
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border-hairline);
 }
 .recent-activity-row:first-child { border-top: 0; }
 .recent-activity-row__delta {
