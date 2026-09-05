@@ -256,4 +256,69 @@ class DailyCronTest extends Fixtures
         $this->assertCount(1, $payload['rows']);
         $this->assertSame(1, $payload['rows'][0]['rank']);
     }
+
+    /**
+     * CR-02 regression: an idle user with a yesterday-only session
+     * (cookie persisted but no page load today) MUST still receive
+     * today's login_streaks row + streak continuation. The 06-REVIEW
+     * CR-02 audit found the original WHERE DATE(s.last_seen) = today
+     * silently skipped these users because session_model::touch()
+     * only bumps last_seen on page loads (5-minute window).
+     *
+     * The fix widened the predicate to last_seen >= yesterday, which
+     * makes the idle-back-tab case visible to the cron. This test
+     * seeds a user with last_seen = yesterday morning and asserts
+     * that recomputeStreakDisplay processes them.
+     */
+    public function test_recompute_includes_user_with_yesterday_only_session(): void
+    {
+        $user = $this->seedUser(['nickname' => 'idle_user']);
+        // last_seen = yesterday morning (Asia/Colombo wall-clock).
+        $yesterdayMorning = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+            ->modify('-1 day')
+            ->setTime(9, 0, 0)
+            ->format('Y-m-d H:i:s');
+        $this->seedSessionFor($user, $yesterdayMorning);
+
+        $result = user_service::recomputeStreakDisplay($this->pdo);
+        $this->assertSame(1, $result['processed'], 'idle user with yesterday session must be counted');
+
+        // Today's login_streaks row was written.
+        $today = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))->format('Y-m-d');
+        $row = $this->pdo->prepare(
+            'SELECT streak_count FROM login_streaks WHERE user_id = ? AND login_date = ?'
+        );
+        $row->execute([$user, $today]);
+        $this->assertSame(1, (int) $row->fetchColumn());
+
+        // current_streak bumped.
+        $currentStreak = (int) $this->pdo->query('SELECT current_streak FROM users WHERE user_id = ' . $user)->fetchColumn();
+        $this->assertSame(1, $currentStreak);
+    }
+
+    /**
+     * CR-02 boundary: a user with a session older than 48 hours
+     * (last_seen = 2 days ago) should NOT be counted — they
+     * genuinely haven't been around. The "yesterday OR today"
+     * window is intentionally not "forever".
+     */
+    public function test_recompute_skips_user_with_session_older_than_48h(): void
+    {
+        $user = $this->seedUser(['nickname' => 'dormant_user']);
+        $twoDaysAgo = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+            ->modify('-2 day')
+            ->setTime(9, 0, 0)
+            ->format('Y-m-d H:i:s');
+        $this->seedSessionFor($user, $twoDaysAgo);
+
+        $result = user_service::recomputeStreakDisplay($this->pdo);
+        $this->assertSame(0, $result['processed'], 'dormant user (>48h ago) must NOT be counted');
+
+        $today = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))->format('Y-m-d');
+        $row = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM login_streaks WHERE user_id = ? AND login_date = ?'
+        );
+        $row->execute([$user, $today]);
+        $this->assertSame(0, (int) $row->fetchColumn(), 'no login_streaks row for today');
+    }
 }

@@ -286,15 +286,31 @@ class user_service
         $awards = [];
         $processed = 0;
         try {
-            // Find users who logged in today (Asia/Colombo wall-clock).
+            // Find users who logged in recently (Asia/Colombo wall-clock).
+            //
+            // The 06-REVIEW CR-02 audit changed the predicate from
+            // `DATE(s.last_seen) = today` to
+            // `last_seen >= today - 1 day`. Reason: sessions.last_seen
+            // is bumped by session_model::touch() in a 5-minute window,
+            // so an idle user whose cookie persisted but who hasn't
+            // loaded a page today has last_seen = yesterday — yet their
+            // cookie session is still valid and they SHOULD receive
+            // today's login_streaks row + streak continuation. The
+            // 48-hour window (`yesterday OR today`) covers the realistic
+            // "back-tab" case without breaking cold-start (sessions
+            // remains the source of truth; login_streaks is updated
+            // AFTER the loop).
             $today = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+                ->format('Y-m-d');
+            $yesterday = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+                ->modify('-1 day')
                 ->format('Y-m-d');
             $rows = $pdo->prepare(
                 'SELECT DISTINCT s.user_id AS user_id '
                 . 'FROM sessions s JOIN users u ON u.user_id = s.user_id '
-                . 'WHERE DATE(s.last_seen) = ? AND u.is_banned = FALSE'
+                . 'WHERE s.last_seen >= ? AND u.is_banned = FALSE'
             );
-            $rows->execute([$today]);
+            $rows->execute([$yesterday]);
             $userIds = $rows->fetchAll(PDO::FETCH_ASSOC);
 
             $insertStmt = $pdo->prepare(
