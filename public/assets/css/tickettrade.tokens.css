@@ -111,11 +111,7 @@
   --color-points-frozen: #0277BD;
   --color-points-frozen-bg: #E1F5FE;
 
-  --paper-card-bg: #FFF8E7;
-  --paper-card-text: #1A1A1A;
-
-  --paper-card-bg: #FAF3E0;
-  --paper-card-text: #1A1A1A;
+  /* ---------- Paper card (theme-invariant; declared on plain :root below) ---------- */
 
   /* ---------- Typography ---------- */
   --font-family-display: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -315,4 +311,11 @@
   --motion-skeleton: 1s;
   --motion-legend-glow: 2.4s ease-in-out infinite;
   --motion-modal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Theme-invariant tokens — paper note is paper-cream in every theme
+   (the corkboard is the visual context, not the surface). */
+:root {
+  --paper-card-bg: #FAF3E0;
+  --paper-card-text: #1A1A1A;
 }

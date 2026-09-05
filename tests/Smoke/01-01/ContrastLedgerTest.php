@@ -112,6 +112,17 @@ final class ContrastLedgerTest extends TestCase
     }
 
     /**
+     * Theme-invariant tokens must be declared exactly once in tokens.css.
+     * Catches duplicate declarations like the --paper-card-bg bug
+     * where the second declaration silently overrode the first.
+     */
+    public function test_paper_card_declared_once(): void
+    {
+        $count = preg_match_all('/--paper-card-bg\s*:/i', $this->tokensContent);
+        $this->assertSame(1, (int) $count, '--paper-card-bg must be declared exactly once in tokens.css');
+    }
+
+    /**
      * Extract tokens from a CSS block keyed by `:root[data-theme="X"] { ... }`.
      *
      * @return array<string, string>  token-name => hex-value
