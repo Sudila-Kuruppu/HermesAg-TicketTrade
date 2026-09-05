@@ -46,7 +46,14 @@ try {
 }
 
 $migrationsDir = APP_ROOT . '/migrations';
-$appliedFile = $migrationsDir . '/.applied';
+// Per-surface applied-state file so a dev-DB migrate run cannot collide
+// with a test-DB migrate run (Pitfall 5 / WR-07). The shared .applied
+// file was a known race — the flock added in WR-05 made the rename
+// atomic, but cross-surface interference (one surface appending while
+// the other is mid-read) was still possible. Per-surface state files
+// also keep dev-only migration scripts from accidentally re-running
+// against the test DB.
+$appliedFile = $migrationsDir . '/.applied.' . $appEnv;
 
 // Acquire an exclusive lock on the .applied file so two concurrent
 // 'php migrate.php' invocations don't read the same set, both apply
