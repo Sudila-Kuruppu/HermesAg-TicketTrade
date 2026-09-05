@@ -459,7 +459,10 @@ class ticket_service
             if ($updated === null) {
                 $pdo->rollBack();
                 // Differentiate NOT_FOUND vs INVALID_STATE vs FORBIDDEN.
-                $existing = ticket_model::findById($pdo, $ticketId);
+// Pre-flight lookup (CR-02 fix: use FOR UPDATE so the row is
+            // row-locked before we validate). The X-lock is released
+            // when this transaction commits or rolls back.
+            $existing = ticket_model::findByIdForUpdate($pdo, $ticketId);
                 if ($existing === null) {
                     return Error::envelope(false, null, [
                         'code' => 'E_TICKET_NOT_FOUND',
