@@ -2,7 +2,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= htmlspecialchars($title ?? 'TicketTrade', ENT_QUOTES, 'UTF-8') ?></title>
+<!-- CR-08: Bootstrap 5.3.3 base MUST load before the local bundle so the
+     --bs-* variables the overrides file sets actually resolve. Bootstrap JS
+     also exposes window.bootstrap.{Modal,Tooltip} used by listing_modal.js. -->
+<link rel="stylesheet" href="/assets/css/bootstrap.min.css">
 <link rel="stylesheet" href="/assets/css/tickettrade.css">
+<script defer src="/assets/js/bootstrap.bundle.min.js"></script>
 <script>
 // Phase 1 FOUC-guard inline script (D-05 of Phase 1 CONTEXT).
 // Reads stored theme BEFORE the CSS resolves so the page never flashes the wrong theme.
