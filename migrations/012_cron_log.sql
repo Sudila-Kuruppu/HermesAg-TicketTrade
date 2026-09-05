@@ -8,7 +8,7 @@
 -- with the affected count + errors + actor. Idempotent re-runs append
 -- rows (no UNIQUE on run_at); the admin UI shows the last N runs.
 
-CREATE TABLE cron_log (
+CREATE TABLE IF NOT EXISTS cron_log (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     job_name VARCHAR(60) NOT NULL,
     run_at DATETIME NOT NULL,
