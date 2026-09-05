@@ -285,13 +285,17 @@ class listing_model
         // walks the user DOWN the list (newest → oldest). So:
         //   next  → older than the current (created_at < current)
         //   prev  → newer than the current (created_at > current)
-        $comparator = ($direction === 'next') ? '<' : '>';
-
-        // ORDER BY clause flipped for direction.
+        // CR-01: validate $direction against a hard-coded allowlist and
+        // build the comparator + ORDER BY from the validated value, so the
+        // SQL is never built from untrusted user input.
         if ($direction === 'next') {
+            $comparator = '<';
             $orderBy = 'ORDER BY l.created_at DESC, l.id DESC';
-        } else {
+        } elseif ($direction === 'prev') {
+            $comparator = '>';
             $orderBy = 'ORDER BY l.created_at ASC, l.id ASC';
+        } else {
+            throw new \InvalidArgumentException('direction must be next or prev');
         }
 
         if ($categoryId !== null) {
