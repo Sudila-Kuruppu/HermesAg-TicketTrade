@@ -28,8 +28,9 @@ class MigrateRunnerTest extends TestCase
         Db::reset();
         $pdo = Db::pdo();
         $this->dropAllTables($pdo);
-        // Also clear .applied so the runner reapplies
-        @unlink(APP_ROOT . '/migrations/.applied');
+        // Clear .applied.test (per WR-07 the runner uses per-surface state files)
+        @unlink(APP_ROOT . '/migrations/.applied.test');
+        @unlink(APP_ROOT . '/migrations/.applied.test.lock');
 
         // Run the migrations
         $output = $this->runMigrations();
@@ -47,14 +48,14 @@ class MigrateRunnerTest extends TestCase
 
     public function test_second_run_is_noop(): void
     {
-        // Re-run; .applied already has all files from the previous test
+        // Re-run; .applied.test already has all files from the previous test
         $output = $this->runMigrations();
         $this->assertStringContainsString('Already up-to-date (0 files to apply)', $output);
     }
 
     public function test_applied_file_has_expected_lines(): void
     {
-        $applied = file_get_contents(APP_ROOT . '/migrations/.applied');
+        $applied = file_get_contents(APP_ROOT . '/migrations/.applied.test');
         $lines = array_filter(explode("\n", $applied), function ($l) {
             return trim($l) !== '';
         });
