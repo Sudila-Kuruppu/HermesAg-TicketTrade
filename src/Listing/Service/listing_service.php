@@ -243,7 +243,12 @@ class listing_service
 
         // Insert listing_images rows for the successful uploads.
         $isFirst = listing_image_model::countByListingId($listingId) === 0;
-        $baseSort = (int) Db::pdo()->query('SELECT COALESCE(MAX(sort_order),0) FROM listing_images WHERE listing_id = ' . (int) $listingId)->fetchColumn();
+        // WR-01: prepared statement instead of string-concat (the
+        // (int) cast neutralized injection but the anti-pattern was
+        // flagged by review).
+        $sortStmt = Db::pdo()->prepare('SELECT COALESCE(MAX(sort_order),0) FROM listing_images WHERE listing_id = ?');
+        $sortStmt->execute([$listingId]);
+        $baseSort = (int) $sortStmt->fetchColumn();
         $inserted = [];
         $firstRow = true;
         foreach ($result['data']['uploaded'] as $row) {
