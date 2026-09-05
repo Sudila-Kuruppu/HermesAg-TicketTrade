@@ -89,9 +89,14 @@ class ticket_service
         try {
             $pdo->beginTransaction();
 
-            // Lock the listing row.
+            // Lock the listing row. CR-03 fix: include price_cents in
+            // the FOR UPDATE projection so the price snapshot for the
+            // ticket row is read under the same row lock — no need for
+            // a separate non-locking re-read that could in principle
+            // observe a different snapshot.
             $stmt = $pdo->prepare(
-                'SELECT id, seller_id, status, quantity, quantity_sold, type '
+                'SELECT id, seller_id, status, quantity, quantity_sold, '
+                . 'price_cents, type '
                 . 'FROM listings WHERE id = ? FOR UPDATE'
             );
             $stmt->execute([$listingId]);
@@ -140,11 +145,9 @@ class ticket_service
                 ->format('Y-m-d H:i:s');
             $createdAt = $now->format('Y-m-d H:i:s');
 
-            // Read price_cents for the ticket row (snapshot at purchase time).
-            $priceStmt = $pdo->prepare('SELECT price_cents FROM listings WHERE id = ?');
-            $priceStmt->execute([$listingId]);
-            $priceRow = $priceStmt->fetch();
-            $priceCents = (int) ($priceRow['price_cents'] ?? 0);
+            // CR-03 fix: price_cents now comes from the FOR UPDATE
+            // snapshot above (same transaction, same row lock).
+            $priceCents = (int) ($listing['price_cents'] ?? 0);
 
             $ticketId = ticket_model::insert([
                 'ticket_code' => $code,
