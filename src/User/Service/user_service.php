@@ -60,7 +60,7 @@ class user_service
         $pdo = Db::pdo();
         $stmt = $pdo->prepare(
             'SELECT user_id, nickname, full_name, bio, avatar_id, tier, '
-            . 'points, is_verified, created_at '
+            . 'points, is_verified, last_active_at, created_at '
             . 'FROM users '
             . 'WHERE BINARY nickname = ? AND is_banned = FALSE '
             . 'LIMIT 1'
