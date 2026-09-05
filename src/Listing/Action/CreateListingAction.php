@@ -55,9 +55,17 @@ class CreateListingAction
 
         // Two-button submit: action=save_draft OR action=submit.
         $button = (string) ($_POST['action'] ?? 'submit');
+        // CR-02: the form collects `price_rupees`; the Service validates
+        // `price_cents`. Translate here so the form/Service contract is
+        // closed in the Action layer (no JS plumbing, no view rename).
+        $post = $_POST;
+        if (isset($post['price_rupees']) && !isset($post['price_cents'])) {
+            $rupees = (int) $post['price_rupees'];
+            $post['price_cents'] = $rupees > 0 ? $rupees * 100 : 0;
+        }
         $result = listing_service::createDraft(
             (int) AuthGuard::currentUser()['user_id'],
-            $_POST
+            $post
         );
 
         if ($result['ok'] === false) {
