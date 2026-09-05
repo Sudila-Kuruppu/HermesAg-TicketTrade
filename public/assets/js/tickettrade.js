@@ -221,7 +221,11 @@
       if (entry.timer) {
         clearTimeout(entry.timer);
         entry.timer = null;
-        entry.remainingMs = Math.max(0, entry.expiresAt - Date.now());
+        // Clamp to 50ms minimum: if the toast already expired while
+        // paused (very long hover), re-arming with 0ms fires immediately
+        // and can race with the click handler. 50ms gives the DOM a
+        // tick to settle.
+        entry.remainingMs = Math.max(50, entry.expiresAt - Date.now());
       }
     }
 

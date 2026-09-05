@@ -114,4 +114,18 @@ final class ToastTest extends TestCase
             'toast queue must be capped at QUEUE_CAP by removing the oldest entry'
         );
     }
+
+    /**
+     * WR-004: clearTimer() must clamp remainingMs to a small minimum so
+     * a toast whose timer already expired while paused does not re-arm
+     * with 0ms (which fires synchronously and races the click handler).
+     */
+    public function test_clear_timer_clamps_remaining_ms(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/Math\.max\(\s*50\s*,\s*entry\.expiresAt\s*-\s*Date\.now\(\)\s*\)/',
+            $this->jsContent,
+            'clearTimer() must clamp remainingMs to Math.max(50, ...) so a paused-then-expired toast does not re-arm with 0ms'
+        );
+    }
 }
