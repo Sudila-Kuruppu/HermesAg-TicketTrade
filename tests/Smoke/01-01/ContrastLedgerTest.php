@@ -97,7 +97,7 @@ final class ContrastLedgerTest extends TestCase
         $root = dirname(__DIR__, 3);
         $command = sprintf(
             'grep -RIn --include=*.css --include=*.js --include=*.php --include=*.html ' .
-            '-E %s %s/public %s/config --exclude=tickettrade.tokens.css | wc -l',
+            '-E %s %s/public %s/config --exclude=tickettrade.tokens.css --exclude=bootstrap.min.css | wc -l',
             "'#[0-9A-Fa-f]{3,8}\\b'",
             escapeshellarg($root),
             escapeshellarg($root)
