@@ -3,7 +3,7 @@ status: complete
 phase: 02-student-authentication-profiles
 source: bin/test --testsuite=phase-2 (programmatic PHPUnit UAT per user request)
 started: 2026-09-05T10:30:00Z
-updated: 2026-09-05T10:35:00Z
+updated: 2026-09-05T11:00:00Z
 mode: programmatic
 ---
 
@@ -34,41 +34,24 @@ result: pass
 
 | Bucket | Count |
 |--------|-------|
-| Passed | 113/114 |
-| Failed | 1 |
+| Passed | 114/114 |
+| Failed | 0 |
 | Errors | 0 |
 | Warnings| 0 |
 | Skipped | 0 |
 
-Assertions: 798 across the phase-2 tests.
+Assertions: 801 across the phase-2 tests.
 
 ## Issues
 
-### I-01: Stale test asserts removed UI feature (D-14 — no tabs in Phase 2)
-
-**File:** `tests/Integration/Phase02/User/PublicProfileTest.php:120-122`
-**Test:** `test_transaction_counts_zero_in_phase_2`
-**Status:** Pre-existing test bug — assertion expects "Sales", "Purchases",
-"Disputes" labels in the public profile rendered HTML. Per D-14 (locked) and
-the 02-03 SUMMARY ("Plan 02-03 ships only the summary header; no tabs
-(D-14, locked)."), the tabs were scoped out of Phase 2. The rendered view
-correctly omits them; the test was never updated to match.
-
-**Fix options:**
-1. (Preferred) Update test to assert "no tabs" / no Sales-Purchases-Disputes
-   copy in the public profile view (matches the shipped contract).
-2. Restore the tabs as a future-phase enhancement (would require unlocking
-   D-14 + revisiting Plan 02-03's "summary header only" decision).
-
-**Severity:** Test-only defect. No production code is broken; the test
-assertion is wrong.
+(All issues from the initial run have been resolved during this session.
+See "Fixes Applied" below.)
 
 ## Fixes Applied During This Run
 
-### MigrateRunnerTest — WR-07 cleanup path
+### MigrateRunnerTest — WR-07 cleanup path (commit `d7d7bae`)
 
 **File:** `tests/Integration/Phase02/Support/MigrateRunnerTest.php`
-**Commit:** `d7d7bae test(02): MigrateRunnerTest uses per-surface .applied.test path`
 
 The WR-07 fix split `migrations/.applied` into per-surface files
 (`.applied.test`, `.applied.development`) so a dev-DB migrate run cannot
@@ -77,27 +60,37 @@ still cleared/read the old shared `.applied`. Result was a vacuous pass —
 `migrate.php` saw every migration as "already applied" via `.applied.test`,
 never actually re-ran, and the test never noticed.
 
-Also found: `bin/test` clears the wrong file (`: > migrations/.applied`),
-but only at the wrong path — not blocking, since `migrate.php` writes to
-`.applied.test`. Worth a follow-up but not blocking Phase 2 verification.
+### PublicProfileTest — stale tabs assertion (commit `c44c0d6`)
 
-### Diagnostic notes from the first run
+**File:** `tests/Integration/Phase02/User/PublicProfileTest.php`
 
-The initial `vendor/bin/phpunit --testsuite phase-2` invocation showed 50
-errors + 2 failures. Investigation:
-- 49 of the 50 errors cascaded from `MigrateRunnerTest::test_first_run_creates_all_tables`
-  dropping all tables then having `migrate.php` fail to recreate them
-  (because it was reading the wrong `.applied` file and re-skipped).
-  Subsequent test classes' `Fixtures::setUp()` then connected to a
-  half-migrated DB and got "Table doesn't exist".
-- 1 of the 50 errors was a direct `migrate.php` failure on `009_categories`
-  (Duplicate entry 'Textbooks') — same root cause: stale `.applied` state
-  caused the runner to skip 001-007 entirely and try to run 009 against a DB
-  that already had categories from a prior partial run.
-- 2 failures: both in MigrateRunnerTest (same root cause: wrong `.applied` path).
+`test_transaction_counts_zero_in_phase_2` asserted "Sales", "Purchases",
+"Disputes" labels in the public profile rendered HTML. Per D-14 (locked)
+and the 02-03 SUMMARY, those tabs were scoped out of Phase 2. Renamed to
+`test_no_tabs_in_phase_2` and inverted the assertions to verify the absence
+of tab-pane markup + per-tab section IDs while keeping a sanity check that
+the summary header still renders. Matches the shipped contract.
 
-After the test fix and a clean `bin/test` run (which drops+remigrates the
-test DB via the fingerprint flow), 113 of 114 pass.
+### 02-VERIFICATION.md — schema migration (commit `c44c0d6`)
+
+**File:** `.planning/phases/02-student-authentication-profiles/02-VERIFICATION.md`
+
+Pre-existing file was authored in an older frontmatter schema the current
+js-yaml FAILSAFE_SCHEMA parser couldn't handle:
+
+- `score:` had an unquoted string with an embedded colon
+  (`20/20 must-haves verified (after orchestrator-applied fixups)`).
+- One `qa_evidence.command:` had an unescaped backslash inside a
+  double-quoted string (`grep ... '\(...'`).
+- One `qa_evidence.result:` had an unescaped embedded `"` inside a
+  double-quoted HTML snippet.
+
+All three caused `extractFrontmatter` to return `{}` → `verification.status`
+returned `missing` → `phase uat-passed` failed with a verification-required
+blocker. Schema-only fix: quoted the score, escaped the backslash, replaced
+the embedded `"` in HTML with `<verify-link>`. Post-migration:
+`verification.status: passed`, 20 must-haves / 25 qa-evidence / 5 gaps
+parsed intact.
 
 ## Coverage Map
 
@@ -136,11 +129,9 @@ AuthGuardTest, RateLimitTest (per-route/per-IP).
   instead of `: > migrations/.applied.test`). Not blocking because
   `migrate.php` honors the per-surface file. Update bin/test to match the
   WR-07 contract.
-- **F-02** `PublicProfileTest::test_transaction_counts_zero_in_phase_2` — fix
-  the assertion to match the shipped "no tabs in Phase 2" contract (see I-01).
 
 ---
 
-_Verified: 2026-09-05T10:35:00Z_
+_Verified: 2026-09-05T11:00:00Z_
 _Verifier: programmatic UAT via `bin/test --testsuite=phase-2`_
-_Pre-existing 02-VERIFICATION.md status: passed (20/20 must-haves, 2026-09-01)_
+_Phase completion: `verification.status: passed`, `phase uat-passed: true` (zero blockers)_
