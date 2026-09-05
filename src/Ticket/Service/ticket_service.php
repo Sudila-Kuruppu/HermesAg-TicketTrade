@@ -272,10 +272,13 @@ class ticket_service
 
             // Award points. The Service is the sole writer of
             // points_log + users.points/tier per AD-10.
-            // Final session = total_sessions for products OR the
-            // explicit final_session path. For product tickets
-            // total_sessions=1, so this is always the final.
-            $isFinal = true;
+            // WR-02 fix: derive $isFinal from the post-redeem
+            // session_number vs total_sessions instead of hardcoding
+            // true. The /tickets/redeem path is for products (so
+            // session_number === total_sessions === 1 is the normal
+            // final case) but the constant prevents accidental
+            // misuse if a service ticket ever routes here.
+            $isFinal = ((int) $redeemed['session_number'] >= (int) $redeemed['total_sessions']);
             $pointsRes = points_service::awardTransaction(
                 (int) $redeemed['buyer_id'],
                 (int) $redeemed['seller_id'],
