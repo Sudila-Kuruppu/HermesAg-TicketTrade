@@ -18,6 +18,7 @@ $themeDefault = $surface === 'admin' ? 'light' : 'dark';
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TicketTrade — Phase 1 UX Foundation</title>
+  <noscript><style>:root{color-scheme:<?= htmlspecialchars($themeDefault, ENT_QUOTES, 'UTF-8') ?>;}</style></noscript>
   <link rel="stylesheet" href="/assets/css/tickettrade.css">
 </head>
 <body class="surface-<?= htmlspecialchars($surface, ENT_QUOTES, 'UTF-8') ?>">
