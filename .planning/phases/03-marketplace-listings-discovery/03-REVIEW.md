@@ -35,10 +35,10 @@ files_reviewed_list:
   - config/routes.php
   - public/assets/js/listing_modal.js
 findings:
-  critical: 7
+  critical: 8
   warning: 8
   info: 4
-  total: 19
+  total: 20
 status: issues_found
 ---
 
@@ -469,3 +469,90 @@ window, but document a removal date or move the warning behind a feature flag.
 _Reviewed: 2026-09-05T00:00:00Z_
 _Reviewer: gsd-code-reviewer_
 _Depth: standard_
+
+---
+
+## Post-Review Addendum (2026-09-05)
+
+A post-review runtime / asset-pipeline check surfaced a defect that the
+code-level review did not catch. Adding it here so the Phase 3 close-out
+list reflects the full defect surface.
+
+### CR-08: Bootstrap CSS is never loaded — every page renders as raw HTML with no styling
+
+**File:** `src/Support/View/partials/head.php:5` and the bundle at
+`public/assets/css/tickettrade.css:10-12`.
+
+**Category:** correctness (asset-pipeline regression — not a security
+bug, but the entire UI is broken).
+
+**Issue:** `head.php` links exactly one stylesheet — the local bundle
+`/assets/css/tickettrade.css`. That bundle contains three `@import`s:
+
+```
+@import url("./tickettrade.tokens.css");
+@import url("./tickettrade.bootstrap-overrides.css");
+@import url("./tickettrade.components.css");
+```
+
+The `tickettrade.bootstrap-overrides.css` file sets the `--bs-primary`,
+`--bs-body-color`, etc. variables on `:root[data-theme="light"]` and
+`:root[data-theme="dark"]`. **Those `--bs-*` variables are Bootstrap's
+internal tokens** — they only resolve against a Bootstrap base stylesheet
+that defines them, which is then re-skinned by the overrides file. There
+is no `<link>` to `bootstrap.min.css`, no `@import` of it from the
+bundle, and no CDN reference. A grep over `public/assets/css/` returns
+only the overrides file (not Bootstrap itself), and a grep over
+`head.php` and the partials shows no CDN or local Bootstrap link.
+
+**Call chain (asset → render):**
+
+```
+public/index.php → config/bootstrap.php → Support\Router::dispatch()
+  → App\Auth\Action\HomeAction::handle()
+    → App\Support\View::render()
+      → src/Support/View/layout.php  (line 20)
+        → require __DIR__ . '/partials/head.php'
+          → <link rel="stylesheet" href="/assets/css/tickettrade.css">
+            → @import tickettrade.tokens.css          (brand vars — works)
+            → @import tickettrade.bootstrap-overrides.css  (sets --bs-*, but no Bootstrap base exists)
+            → @import tickettrade.components.css      (custom components — works)
+          → <script defer src="/assets/js/tickettrade.js"></script>
+            → references window.bootstrap.Tooltip       (assumes Bootstrap JS is loaded)
+          → <script defer src="/assets/js/listing_modal.js"></script>
+            → references window.bootstrap.Modal         (assumes Bootstrap JS is loaded)
+```
+
+**Impact:** Every page — landing, board, corkboard, listing modal,
+seller dashboard, admin — renders as raw HTML. Every Bootstrap utility
+class used across `src/Listing/View/*.php`, `src/Auth/View/*.php`, and
+`src/Support/View/partials/*.php` (`.btn`, `.row`, `.col-*`, `.modal`,
+`.card`, `.d-flex`, `.container`, `.navbar`, `.alert`, `.badge`,
+`.form-control`, `.visually-hidden`) is a no-op. The brand tokens color
+the body but produce no layout, no grid, no components. The product is
+un-shippable in its current state.
+
+The 304-test PHPUnit suite never asserts that Bootstrap classes resolve
+to CSS — it inspects rendered HTML markup, which parses fine when
+unstyled, so the test suite stays green while the UI is broken.
+
+**Recommendation:** Add Bootstrap 5.3.3 to `head.php` BEFORE the local
+bundle so `--bs-*` variables resolve before the overrides file sets
+them:
+
+```php
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link rel="stylesheet" href="/assets/js/bootstrap.bundle.min.js" defer> <!-- bootstrap JS for window.bootstrap.Modal -->
+<link rel="stylesheet" href="/assets/css/tickettrade.css">
+```
+
+Or, if the project's "sole Composer dep" constraint forbids the CDN,
+download `bootstrap.min.css` and `bootstrap.bundle.min.js` to
+`public/assets/css/` and `public/assets/js/` respectively, and `<link>`
+/`<script>` them before the local bundle. The WAD assignment allows
+Bootstrap or Material UI — the team chose Bootstrap — so either path is
+in spec.
+
+**Severity:** Critical. The entire UI surface is broken. Rated below the
+seven SQL/auth/XSS findings above because no data is at risk — only
+presentation.
