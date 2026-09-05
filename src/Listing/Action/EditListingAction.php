@@ -49,7 +49,14 @@ class EditListingAction
         }
         $listing = $result['data'];
 
-        // D-04: rejected listings flip to draft on edit page load.
+        // D-04: rejected listings flip to draft on edit page load. This is
+        // intentional (documented in D-04 + Phase 3 SUMMARY must-haves)
+        // and gated by the `=== 'rejected'` check — once flipped, the
+        // next GET sees `status='draft'` and skips the write, so a
+        // browser refresh or crawler pre-fetch does NOT keep bumping
+        // `updated_at`. WR-03 noted the GET-mutates-DB pattern; the
+        // one-shot gate is the minimum fix. A future phase may move
+        // the flip to a POST button per the reviewer's recommendation.
         if (($listing['status'] ?? '') === 'rejected') {
             listing_service::saveDraft($listingId, (int) $user['user_id'], $listing);
             $listing['status'] = 'draft';
