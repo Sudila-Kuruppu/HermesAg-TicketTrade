@@ -55,11 +55,16 @@ if [ ! -f config/db.php ]; then
     else
         DSN="mysql:host=127.0.0.1;port=3306;dbname=tickettrade;charset=utf8mb4"
     fi
+    # Run DSN + DB_USER through PHP var_export so any single-quote /
+    # backslash / dollar / newline is safely string-literalized. The
+    # shell heredoc would otherwise treat them as syntax.
+    DSN_LITERAL=$(printf "%s" "$DSN" | php -r 'echo var_export(stream_get_contents(STDIN), true);')
+    USER_LITERAL=$(printf "%s" "$DB_USER" | php -r 'echo var_export(stream_get_contents(STDIN), true);')
     cat > config/db.php <<EOF
 <?php
 return [
-    'dsn'  => getenv('DB_DSN') ?: '$DSN',
-    'user' => getenv('DB_USER') ?: '$DB_USER',
+    'dsn'  => getenv('DB_DSN') ?: ${DSN_LITERAL},
+    'user' => getenv('DB_USER') ?: ${USER_LITERAL},
     'pass' => getenv('DB_PASS') ?: '',
 ];
 EOF
@@ -73,11 +78,13 @@ if [ ! -f config/db.test.php ]; then
     else
         DSN="mysql:host=127.0.0.1;port=3306;dbname=tickettrade_test;charset=utf8mb4"
     fi
+    DSN_LITERAL=$(printf "%s" "$DSN" | php -r 'echo var_export(stream_get_contents(STDIN), true);')
+    USER_LITERAL=$(printf "%s" "$DB_USER" | php -r 'echo var_export(stream_get_contents(STDIN), true);')
     cat > config/db.test.php <<EOF
 <?php
 return [
-    'dsn'  => getenv('DB_DSN') ?: '$DSN',
-    'user' => getenv('DB_USER') ?: '$DB_USER',
+    'dsn'  => getenv('DB_DSN') ?: ${DSN_LITERAL},
+    'user' => getenv('DB_USER') ?: ${USER_LITERAL},
     'pass' => getenv('DB_PASS') ?: '',
 ];
 EOF
