@@ -114,17 +114,25 @@ class points_log_model
     }
 
     /**
-     * Count of distinct reference_id rows for the given pair (userA, userB)
-     * against the given ticket today, excluding cap-hit rows and excluding
+     * Count of distinct ticket (reference_id) rows for the given pair
+     * (userA, userB) today, excluding cap-hit rows and excluding
      * non-transaction reference_types. The pair-cap check in
      * points_service uses the value to decide whether to insert a counted
      * row or a cap-hit audit row.
      *
+     * Per D-08 + FR-PTS-006: the cap is "2 counted transactions/day
+     * per buyer-seller pair". The ticket_id parameter is the candidate
+     * ticket; the count is the number of OTHER distinct tickets for
+     * the same pair that have already counted today. When the count
+     * is >= 2 the candidate ticket triggers the pair cap (this is
+     * the 3rd counted transaction of the pair today).
+     *
      * @param PDO $pdo
      * @param int $userA
      * @param int $userB
-     * @param int $ticketId
-     * @return int Count of distinct counted rows for this pair+ticket today.
+     * @param int $ticketId  The candidate ticket for the upcoming award.
+     * @return int Count of distinct counted tickets for this pair today
+     *              that ARE NOT the candidate ticket.
      */
     public static function countPairInDay(
         PDO $pdo,
@@ -132,15 +140,43 @@ class points_log_model
         int $userB,
         int $ticketId
     ): int {
+        // D-08 + FR-PTS-006: the cap is 2 counted transactions/day
+        // per (buyer, seller) pair. We count distinct reference_ids
+        // (one per ticket) for the pair today, EXCLUDING the candidate
+        // ticket. When the count is >= 2, the candidate ticket is the
+        // 3rd counted transaction today → pair cap fires.
+        //
+        // The earlier 06-01 shape (WHERE reference_id = ?) was wrong —
+        // it filtered to a single ticket so the count could never
+        // reach 2 and the cap could never fire. This rewrite uses
+        // DISTINCT reference_id without a ticket filter, then subtracts
+        // 1 for the candidate if it already counted today.
         $sql = "SELECT COUNT(DISTINCT reference_id) FROM points_log "
-            . "WHERE user_id IN (?, ?) AND reference_id = ? "
+            . "WHERE user_id IN (?, ?) "
             . "AND DATE(event_at) = CURDATE() "
             . "AND (JSON_EXTRACT(metadata, \"$.pair_cap_hit\") IS NULL "
             . "OR JSON_EXTRACT(metadata, \"$.pair_cap_hit\") = false) "
             . "AND reference_type IN ('final_session', 'transaction')";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$userA, $userB, $ticketId]);
-        return (int) $stmt->fetchColumn();
+        $stmt->execute([$userA, $userB]);
+        $total = (int) $stmt->fetchColumn();
+        // If the candidate ticket has a counted row today, subtract 1 —
+        // it's the row we're about to write (via the normal path) or
+        // it's an already-counted row that should be allowed (the cap
+        // is about OTHER tickets, not the current one).
+        if ($ticketId > 0) {
+            $sqlCand = "SELECT COUNT(*) FROM points_log "
+                . "WHERE user_id IN (?, ?) AND reference_id = ? "
+                . "AND DATE(event_at) = CURDATE() "
+                . "AND (JSON_EXTRACT(metadata, \"$.pair_cap_hit\") IS NULL "
+                . "OR JSON_EXTRACT(metadata, \"$.pair_cap_hit\") = false) "
+                . "AND reference_type IN ('final_session', 'transaction')";
+            $stmtCand = $pdo->prepare($sqlCand);
+            $stmtCand->execute([$userA, $userB, $ticketId]);
+            $candidateCount = (int) $stmtCand->fetchColumn();
+            $total = max(0, $total - $candidateCount);
+        }
+        return $total;
     }
 
     /**

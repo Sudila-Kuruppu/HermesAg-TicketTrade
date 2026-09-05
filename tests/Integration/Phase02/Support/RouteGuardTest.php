@@ -20,9 +20,12 @@ class RouteGuardTest extends Fixtures
     public function test_private_routes_have_auth_flag(): void
     {
         $routes = require APP_ROOT . '/config/routes.php';
+        // Plan 06-03 split /profile (view) from /profile/edit (form).
+        // The auth-required keys live on the edit endpoint now.
         $expected = [
             'GET /profile' => true,
-            'POST /profile' => true,
+            'GET /profile/edit' => true,
+            'POST /profile/edit' => true,
             'POST /logout' => true,
             'GET /settings' => true,
             'POST /settings' => true,
@@ -60,7 +63,8 @@ class RouteGuardTest extends Fixtures
     public function test_csrf_flag_on_state_changing_routes(): void
     {
         $routes = require APP_ROOT . '/config/routes.php';
-        $stateChanging = ['POST /login', 'POST /register', 'POST /forgot-password', 'POST /reset-password', 'POST /profile', 'POST /logout', 'POST /settings'];
+        // Plan 06-03: POST /profile is now POST /profile/edit.
+        $stateChanging = ['POST /login', 'POST /register', 'POST /forgot-password', 'POST /reset-password', 'POST /profile/edit', 'POST /logout', 'POST /settings'];
         foreach ($stateChanging as $key) {
             $csrf = $routes[$key][2]['csrf'] ?? false;
             $this->assertTrue($csrf, "Route $key should have csrf flag");

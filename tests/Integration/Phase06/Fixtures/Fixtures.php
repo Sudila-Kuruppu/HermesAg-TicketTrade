@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Phase 6 — Integration Test Fixtures
  *
@@ -29,11 +30,15 @@ if (!defined('APP_ROOT')) {
 
 abstract class Fixtures extends Phase04Fixtures
 {
-    // No new tables from Plan 06-01 itself (the schema additions land
-    // in migrations 018/019 and don't introduce TRUNCATE-needing
-    // tables). Plan 06-03 adds leaderboard_* and login_streaks; the
-    // truncate-IGNORE pattern from Phase 04 will handle them when
-    // those plans ship.
+    /**
+     * Plan 06-03 override: also clear the leaderboard_* + login_streaks
+     * tables so suite order is deterministic.
+     */
+    protected function resetTables(): void
+    {
+        parent::resetTables();
+        $this->truncateLeaderboards();
+    }
 
     /**
      * Insert a raw points_log row with the given values. Bypasses
@@ -83,5 +88,60 @@ abstract class Fixtures extends Phase04Fixtures
         $stmt->execute([$userId]);
         $v = $stmt->fetchColumn();
         return $v === false ? null : ($v !== null ? (string) $v : null);
+    }
+
+    /**
+     * Insert a sessions row directly for tests that need to seed
+     * "logged in today" users (Plan 06-03 streak recompute).
+     */
+    protected function seedSessionFor(int $userId, ?string $lastSeen = null): string
+    {
+        $sid = 'test-sid-' . bin2hex(random_bytes(4));
+        $now = $lastSeen ?? (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+            ->format('Y-m-d H:i:s');
+        $this->pdo->prepare(
+            'INSERT INTO sessions (session_id, user_id, last_seen, ip, user_agent, created_at) '
+            . 'VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$sid, $userId, $now, '127.0.0.1', 'phpunit', $now]);
+        return $sid;
+    }
+
+    /**
+     * Insert a login_streaks row directly (bypasses the daily cron).
+     */
+    protected function seedLoginStreak(int $userId, string $loginDate, int $streakCount = 1): void
+    {
+        $now = (new \DateTime('now', new \DateTimeZone('Asia/Colombo')))
+            ->format('Y-m-d H:i:s');
+        $this->pdo->prepare(
+            'INSERT INTO login_streaks (user_id, login_date, streak_count, updated_at) '
+            . 'VALUES (?, ?, ?, ?) '
+            . 'ON DUPLICATE KEY UPDATE streak_count = VALUES(streak_count), updated_at = VALUES(updated_at)'
+        )->execute([$userId, $loginDate, $streakCount, $now]);
+    }
+
+    /**
+     * Truncate the Phase 6 leaderboard tables + login_streaks between
+     * tests so suite order is deterministic.
+     */
+    protected function truncateLeaderboards(): void
+    {
+        $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+        foreach (
+            [
+            'leaderboard_campus_legends',
+            'leaderboard_weekly_risers',
+            'leaderboard_category_leaders',
+            'leaderboard_streak_kings',
+            'login_streaks',
+            ] as $t
+        ) {
+            try {
+                $this->pdo->exec('TRUNCATE TABLE ' . $t);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+        $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 }
