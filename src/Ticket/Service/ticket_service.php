@@ -348,7 +348,12 @@ class ticket_service
         try {
             $pdo->beginTransaction();
 
-            $existing = ticket_model::findById($pdo, $ticketId);
+            // CR-02 fix: locking pre-flight (FOR UPDATE) so the row
+            // is X-locked before we validate session_number vs
+            // total_sessions. The subsequent incrementSession UPDATE
+            // then sees the same snapshot and cannot race against a
+            // concurrent confirmSession / redeemTicket / fileDispute.
+            $existing = ticket_model::findByIdForUpdate($pdo, $ticketId);
             if ($existing === null) {
                 $pdo->rollBack();
                 return Error::envelope(false, null, [
@@ -475,29 +480,39 @@ class ticket_service
         try {
             $pdo->beginTransaction();
 
+            // CR-02 fix: locking pre-flight (FOR UPDATE) so the row
+            // is X-locked BEFORE we attempt the dispute UPDATE. The
+            // previous placement (inside the post-rollback error-mapping
+            // branch) acquired the lock after the transaction was
+            // already gone — useless. Now: lock first, then run the
+            // atomic fileDispute UPDATE, with the lock held throughout.
+            $existing = ticket_model::findByIdForUpdate($pdo, $ticketId);
+            if ($existing === null) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_NOT_FOUND',
+                    'message' => 'Ticket not found.',
+                ]);
+            }
+            if (
+                (int) $existing['buyer_id'] !== $actorUserId
+                && (int) $existing['seller_id'] !== $actorUserId
+            ) {
+                $pdo->rollBack();
+                return Error::envelope(false, null, [
+                    'code' => 'E_TICKET_FORBIDDEN',
+                    'message' => 'You do not have permission to dispute this ticket.',
+                ]);
+            }
+
             $updated = ticket_model::fileDispute($pdo, $ticketId, $actorUserId);
             if ($updated === null) {
                 $pdo->rollBack();
-                // Differentiate NOT_FOUND vs INVALID_STATE vs FORBIDDEN.
-// Pre-flight lookup (CR-02 fix: use FOR UPDATE so the row is
-            // row-locked before we validate). The X-lock is released
-            // when this transaction commits or rolls back.
-            $existing = ticket_model::findByIdForUpdate($pdo, $ticketId);
-                if ($existing === null) {
-                    return Error::envelope(false, null, [
-                        'code' => 'E_TICKET_NOT_FOUND',
-                        'message' => 'Ticket not found.',
-                    ]);
-                }
-                if (
-                    (int) $existing['buyer_id'] !== $actorUserId
-                    && (int) $existing['seller_id'] !== $actorUserId
-                ) {
-                    return Error::envelope(false, null, [
-                        'code' => 'E_TICKET_FORBIDDEN',
-                        'message' => 'You do not have permission to dispute this ticket.',
-                    ]);
-                }
+                // Guard failed on fileDispute: status/dispute-status
+                // no longer admit a dispute (e.g. dispute_status is
+                // already 'pending', or status is not in
+                // ('active','redeemed')). The row-lock is already
+                // released via the rollback.
                 return Error::envelope(false, null, [
                     'code' => 'E_TICKET_INVALID_STATE',
                     'message' => 'Ticket is not in a state that allows disputes.',
