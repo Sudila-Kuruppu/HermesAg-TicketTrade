@@ -18,4 +18,6 @@ return [
     'GET /admin/reports'      => ['App\Admin\Action\ReportsAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => false, 'rate_limit' => null]],
     'GET /admin/cron'         => ['App\Admin\Action\CronAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => false, 'rate_limit' => null]],
     'GET /admin/audit'        => ['App\Admin\Action\AuditAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => false, 'rate_limit' => null]],
+    'POST /admin/cron/ticket-expiry' => ['App\Admin\Action\CronAction', 'handle', ['auth' => true, 'admin' => true, 'csrf' => true, 'rate_limit' => 'admin_cron']],
+    'POST /admin/cron/daily' => ['App\Admin\Action\CronAction', 'handleDaily', ['auth' => true, 'admin' => true, 'csrf' => true, 'rate_limit' => 'admin_cron']],
 ];
