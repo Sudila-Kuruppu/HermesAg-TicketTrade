@@ -54,7 +54,12 @@ class Router
                     continue;
                 }
                 $rkPath = substr($routeKey, $spacePos + 1);
-                $pattern = preg_replace('#\\{[^}]+\\}#', '([^/]+)', $rkPath);
+                // Escape regex metacharacters in the literal part of the
+                // route, then swap in a capture group for {placeholders}.
+                // Without preg_quote, a literal '.' in a route like
+                // '/items/{id}.json' would behave as a regex wildcard.
+                $quoted = preg_quote($rkPath, '#');
+                $pattern = preg_replace('#\\\\{[^}]+\\\\}#', '([^/]+)', $quoted);
                 if (!is_string($pattern)) {
                     continue;
                 }
