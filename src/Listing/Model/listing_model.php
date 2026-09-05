@@ -214,16 +214,6 @@ class listing_model
     }
 
     /**
-     * Increment quantity_sold atomically. Used by Phase 4 ticket creation;
-     * here it is exposed so the Service can use it for state-machine
-     * bookkeeping if needed.
-     */
-
-    /**
-     * Decrement quantity_sold atomically. Bounded by 0 (never negative).
-     */
-
-    /**
      * Toggle the review_flag on an active listing edit.
      */
     public static function setReviewFlag(int $id, bool $on): int
