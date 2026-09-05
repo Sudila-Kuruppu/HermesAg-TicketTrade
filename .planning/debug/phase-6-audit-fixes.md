@@ -19,16 +19,9 @@
 
 ### Fix 2 — MAJOR: trigger refreshes `last_active_at` for zero-delta cap-hit rows
 
-**File:** `migrations/019_users_last_active.sql` (line 37)
+**File:** `migrations/019_users_last_active.sql` (line 37); `migrations/022_trigger_cap_hit_ignore.sql` (NEW patch path)
 **Symptom:** `BEFORE INSERT` trigger fires for every `points_log` row including `velocity_cap_hit` and `pair_cap_hit` zero-delta rows. A capped-out user spamming hundreds of suppressed events per day stays "fresh" forever, defeating the 14-day on-break pill (PTS-08).
-**Fix:** Added `WHEN (NEW.delta > 0)` clause to the trigger body. Only real point-earning activity bumps `last_active_at`. Trigger body is still a single statement (no `BEGIN/END` block) — compatible with the `;`-splitting runner.
-
-```sql
-DROP TRIGGER IF EXISTS trg_points_log_refresh_last_active;
-CREATE TRIGGER trg_points_log_refresh_last_active BEFORE INSERT ON points_log FOR EACH ROW
-WHEN (NEW.delta > 0)
-UPDATE users SET last_active_at = NOW() WHERE user_id = NEW.user_id;
-```
+**Fix:** Initially shipped as a `WHEN (NEW.delta > 0)` clause in the trigger body (commit `6bf4312`). MariaDB 11.4.5 rejects that syntax (`ERROR 1064 ... near 'WHEN (NEW.delta > 0) UPDATE users ...'`) — MariaDB does not support a standalone `WHEN` predicate inside a `CREATE TRIGGER` whose body is itself a single `UPDATE` statement. Corrected to an inline `IF(NEW.delta > 0, NOW(), last_active_at)` expression: returns `NOW()` on real point-earning activity and the existing `last_active_at` on zero-delta cap-hit rows. Single statement, no `BEGIN/END` block, no `DELIMITER` change — compatible with the `;`-splitting runner. Updated in 019 (fresh installs) and 022 (patch path for already-applied DBs).
 
 ### Fix 3 — MAJOR: string-concat WHERE clause for `longest_streak`
 
